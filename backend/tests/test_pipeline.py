@@ -125,11 +125,16 @@ async def test_adjunto_clasificado_valido_no_genera_aviso(tmp_path):
         tipo_detectado=TipoDocumento.DNI,
         confianza_score=0.93, confianza_nivel="ALTA",
     )
+    solicitud_baja_clf = ResultadoClasificacion(
+        tipo_detectado=TipoDocumento.SOLICITUD_BAJA,
+        confianza_score=0.91, confianza_nivel="ALTA",
+    )
 
-    with patch.object(clf, "clasificar", side_effect=[permiso_clf, dni_clf]):
+    with patch.object(clf, "clasificar", side_effect=[permiso_clf, dni_clf, solicitud_baja_clf]):
         adjuntos = [
             _adjunto_pdf("permiso.pdf"),
             _adjunto_pdf("dni.pdf"),
+            _adjunto_pdf("solicitud_baja.pdf"),
         ]
         resultado = await pipeline.procesar_email(
             email_entrante=_email(adjuntos=adjuntos),
@@ -138,8 +143,8 @@ async def test_adjunto_clasificado_valido_no_genera_aviso(tmp_path):
             gestoria_email="g@gestor.es",
         )
 
-    assert resultado.adjuntos_procesados == 2
-    # BAJA requiere permiso_circulacion + dni → ambos están → sin avisos
+    assert resultado.adjuntos_procesados == 3
+    # BAJA requiere permiso_circulacion + dni + solicitud_baja → todos → sin avisos
     assert resultado.mensajes_preparados == []
 
 

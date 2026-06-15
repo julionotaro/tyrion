@@ -14,17 +14,26 @@ Principio de escalado (documentado en estudio-ia):
   1. Tyrion prepara mensaje a la gestoría y espera.
   2. Solo si la gestoría no resuelve (o la situación es irresolvable por Tyrion)
      se escala al administrativo. El admin es el último recurso, no el primero.
+
+resolver_checklist() implementa el árbol de decisión de docs/matriz-documental-tramites.md §5.
+La función es pura y determinista; la tabla `requisitos_tramite` en BD la sustituirá en v2.
 """
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.schemas.clasificacion import ResultadoClasificacion
 from app.services.catalogo_documental import (
-    TipoDocumento,
-    CONFUSIONES_FRECUENTES,
-    TipoTramite,
-    ValidezVinculo,
     CHECKLIST_POR_TRAMITE,
+    CONFUSIONES_FRECUENTES,
+    FamiliaTramite,
+    NaturalezaPartes,
+    OrigenVehiculo,
+    SubtipoTramite,
+    TipoDocumento,
+    TipoTramite,
+    TipoVehiculo,
+    ValidezVinculo,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,6 +101,96 @@ def _construir_mapa_compatibles() -> dict[str, set[str]]:
 
 
 _MAPA_COMPATIBLES: dict[str, set[str]] = _construir_mapa_compatibles()
+
+
+@dataclass
+class ChecklistResuelto:
+    """Resultado de resolver_checklist(): requisitos aplicables + banderas de proceso."""
+    requisitos: list[str]
+    flags: dict[str, Any] = field(default_factory=dict)
+
+    # Accesos rápidos a banderas comunes
+    @property
+    def no_telematico(self) -> bool:
+        return bool(self.flags.get("no_telematico"))
+
+    @property
+    def requiere_revision_manual(self) -> bool:
+        return bool(self.flags.get("requiere_revision_manual"))
+
+
+def resolver_checklist(
+    familia: FamiliaTramite,
+    subtipo: SubtipoTramite = SubtipoTramite.NINGUNO,
+    origen: OrigenVehiculo = OrigenVehiculo.ESPANA,
+    tipo_vehiculo: TipoVehiculo = TipoVehiculo.TURISMO,
+    naturaleza_partes: NaturalezaPartes = NaturalezaPartes.PARTICULAR,
+) -> ChecklistResuelto:
+    """Árbol de decisión parametrizado para los requisitos de un trámite.
+
+    Implementa la matriz docs/matriz-documental-tramites.md §5.
+    Devuelve la lista exacta de requisitos obligatorios para la combinación
+    de parámetros dada, más banderas de proceso (no_telematico, etc.).
+
+    Es pura y determinista: no toca BD, no tiene efectos secundarios.
+    """
+    flags: dict[str, Any] = {}
+
+    # ── Checklist base por familia ─────────────────────────────────────────────
+    if familia == FamiliaTramite.TRANSFERENCIA:
+        base = ["permiso_circulacion", "modelo_620", "dni", "contrato_compraventa"]
+
+        # §5.1.E — Herencia: documentación adicional
+        if subtipo == SubtipoTramite.HERENCIA:
+            base += ["certificado_defuncion", "modelo_650", "declaracion_herederos", "anexo_650"]
+
+    elif familia == FamiliaTramite.MATRICULACION:
+        base = ["solicitud_matriculacion", "ficha_tecnica", "ivtm", "impuesto_matriculacion", "dni"]
+
+        # §5.1.A — Remolque exento de impuesto de matriculación
+        if tipo_vehiculo == TipoVehiculo.REMOLQUE:
+            base.remove("impuesto_matriculacion")
+
+        # §5.1.D — Documentación extranjera solo para vehículo usado de origen no español
+        if subtipo == SubtipoTramite.USADO and origen in (OrigenVehiculo.UE, OrigenVehiculo.FUERA_UE):
+            base.append("documentacion_extranjera")
+
+    elif familia == FamiliaTramite.BAJA:
+        base = ["permiso_circulacion", "dni", "solicitud_baja"]
+
+    elif familia == FamiliaTramite.CAMBIO_DOMICILIO:
+        base = ["permiso_circulacion", "dni", "justificante_domicilio"]
+
+    elif familia in (FamiliaTramite.DUPLICADO_CIRCULACION, FamiliaTramite.DUPLICADO_FICHA):
+        base = ["dni", "solicitud_duplicado", "justificante_pago"]
+
+    elif familia == FamiliaTramite.CONDUCTORES:
+        base = ["permiso_circulacion", "dni"]
+
+    elif familia == FamiliaTramite.PLACAS_VERDES:
+        base = ["permiso_circulacion", "ficha_tecnica", "certificado_homologacion_electrico"]
+
+    elif familia == FamiliaTramite.PLACAS_ROJAS:
+        base = ["dni", "justificante_pago"]
+
+    else:
+        base = []
+
+    # ── Modificadores transversales ────────────────────────────────────────────
+
+    # §5.1.B — Agrícola: requiere cartilla (se aplica a cualquier familia)
+    if tipo_vehiculo == TipoVehiculo.AGRICOLA:
+        base.append("cartilla_agricola")
+
+    # §5.1.C — Histórico: no altera documentos, activa flag (ART.11 RD982/2024)
+    if tipo_vehiculo == TipoVehiculo.HISTORICO:
+        flags["no_telematico"] = True
+
+    # §5.1.F — Empresa adquirente: escritura de poder + CIF
+    if naturaleza_partes == NaturalezaPartes.EMPRESA_ADQUIRENTE:
+        base += ["escritura_poder", "cif"]
+
+    return ChecklistResuelto(requisitos=base, flags=flags)
 
 
 class MotorCotejo:

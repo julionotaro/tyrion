@@ -110,19 +110,53 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ⏭ TAREA 3 (verificación Docker end-to-end): Docker daemon no disponible en entorno cloud
   - Ejecutar `make up && curl http://localhost:8000` en local para verificar
 
+### Sesión 6 — Refactor motor de cotejo a árbol condicional (15/06/2026)
+- ✅ `docs/matriz-documental-tramites.md` — referencia canónica commiteada (§1-§11)
+- ✅ `catalogo_documental.py` ampliado:
+  - `FamiliaTramite`: TRANSFERENCIA, MATRICULACION, BAJA, CAMBIO_DOMICILIO,
+    DUPLICADO_CIRCULACION, DUPLICADO_FICHA, CONDUCTORES, PLACAS_VERDES, PLACAS_ROJAS
+  - `SubtipoTramite`: compraventa_particular, compra_empresa, herencia, nuevo, usado
+  - `OrigenVehiculo`: espana, ue, fuera_ue, subasta
+  - `TipoVehiculo`: turismo, remolque, agricola, historico
+  - `NaturalezaPartes`: particular, empresa_adquirente, empresa_transmitente
+  - 16 nuevos `TipoDocumento` (solicitud_matriculacion, ivtm, modelo_650, etc.)
+- ✅ `motor_cotejo.py` refactorizado:
+  - `resolver_checklist(familia, subtipo, origen, tipo_vehiculo, naturaleza_partes)` — árbol puro
+  - `ChecklistResuelto`: requisitos + flags (`no_telematico`, `requiere_revision_manual`)
+  - Reglas §5: remolque sin impuesto_matriculacion, agrícola+cartilla, histórico+flag,
+    nuevo/usado+doc.extranjera, herencia+650+herederos, empresa+poder+cif
+  - 9 familias de trámite cubiertas (no solo 3)
+  - `MotorCotejo` y tests existentes intactos
+- ✅ `cruces.py` (NUEVO) — validaciones multi-documento con clave primaria = bastidor:
+  - `cruce_transferencia()`: bastidor(permiso↔CTI↔620), CET con tolerancia 5%, NIF transmitente
+  - `cruce_herencia()`: causante(650↔defunción↔CTI), bastidor en Anexo 650
+  - `cruce_matriculacion()`: bastidor en 4 documentos, potencia kW ficha↔IVTM
+  - `ResultadoCruce` con `severidad_maxima`, `ok`, `requiere_revision_manual`
+  - Severidades: OK / EVIDENCIA (gestoría) / RECHAZADO (admin, último recurso)
+- ✅ 40 tests nuevos — `test_resolver_checklist.py` (20) + `test_cruces.py` (20)
+- ✅ Suite acumulada: **123 pasando, 5 skipped, 0 fallos**
+
+**TODO documentado (sesión siguiente):**
+- Ingesta de planilla (Relación Transmisiones/Matrículas)
+- Cruce email ↔ planilla (trámites del día vs. correos recibidos)
+- Campo `no_telematico` en tabla `tramites` + migración SQL
+- Integración `resolver_checklist()` con tabla `requisitos_tramite` en BD
+
 ## ESTADO SESIÓN — 15/06/2026 (última)
 
-### Completado en esta sesión (5)
-- Fix httpx/anthropic: 83 tests, todos verdes (cero fallos)
-- RepositorioPostgres completo: pipeline y API listos para BD real con flip de `USE_DATOS_PRUEBA=false`
-- Tests de integración marcados y skippables automáticamente sin BD
+### Completado en esta sesión (6)
+- Motor de cotejo refactorizado a árbol condicional parametrizado
+- 9 familias de trámite + 5 parámetros de contexto (subtipo, origen, vehículo, partes)
+- 3 cruces multi-documento completos con severidad OK/EVIDENCIA/RECHAZADO
+- 40 tests nuevos; suite total **123 pasando**
 
 ### Próxima acción concreta
-- **Sesión 6**: Ingesta de email real (IMAP) + SMTP de avisos + verificación Docker end-to-end
-- Archivo PDF en split-view (GET /documentos/{id}/archivo con FileResponse real)
-- Sesión con cliente: confirmar tiempos SLA por tipo de trámite y canal con gestorías
+- **Sesión 7**: Ingesta planilla + cruce email↔planilla + campo `no_telematico` en BD
+- Archivo PDF en split-view (FileResponse real desde uploads_dir)
+- Sesión con cliente: confirmar tiempos SLA y canal oficial con gestorías
 
 ### Decisiones tomadas
-- `RepositorioPostgres` usa psycopg2 síncrono (consistente con migraciones y el worker)
-- `crear_repositorio()` en pipeline.py es el único punto de selección de backend de persistencia
-- Tests de integración se saltan en CI sin BD; se activan con `pytest -m integration` en entorno con Docker
+- `resolver_checklist()` es pura (sin BD): el árbol completo vive en código
+- La tabla `requisitos_tramite` sustituirá el árbol en v2 (configuración sin redeploy)
+- Clave de cruce = bastidor (VIN), no matrícula; normalizado a mayúsculas sin espacios
+- Cruces: EVIDENCIA → pide gestoría; RECHAZADO → admin (último recurso, nunca el primero)
