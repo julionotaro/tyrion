@@ -144,19 +144,12 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 
 ## ESTADO SESIÓN — 15/06/2026 (última)
 
-### Completado en esta sesión (6)
-- Motor de cotejo refactorizado a árbol condicional parametrizado
-- 9 familias de trámite + 5 parámetros de contexto (subtipo, origen, vehículo, partes)
-- 3 cruces multi-documento completos con severidad OK/EVIDENCIA/RECHAZADO
-- 40 tests nuevos; suite total **123 pasando**
+### Completado en esta sesión (docs)
+- `docs/flujo-operativo-estandarizado.md` commiteado — 5 fases del proceso real, mapa a módulos Tyrion, tabla diferencias con modelo previo, pendientes sesión 2
+- `docs/instructivo-operativo.md` commiteado — checklists por familia, cruces requeridos, tabla identificación de personas, descripción automáticas de Tyrion, preguntas sesión 2
 
 ### Próxima acción concreta
-- **Sesión 7**: Ingesta planilla + cruce email↔planilla + campo `no_telematico` en BD
-- Archivo PDF en split-view (FileResponse real desde uploads_dir)
-- Sesión con cliente: confirmar tiempos SLA y canal oficial con gestorías
+- **Sesión 7**: Ingesta de planilla + cruce email↔planilla + campo `no_telematico` en BD
 
 ### Decisiones tomadas
-- `resolver_checklist()` es pura (sin BD): el árbol completo vive en código
-- La tabla `requisitos_tramite` sustituirá el árbol en v2 (configuración sin redeploy)
-- Clave de cruce = bastidor (VIN), no matrícula; normalizado a mayúsculas sin espacios
-- Cruces: EVIDENCIA → pide gestoría; RECHAZADO → admin (último recurso, nunca el primero)
+- `docs/` es la referencia canónica de proceso (junto con `matriz-documental-tramites.md` ya existente)
