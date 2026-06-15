@@ -40,7 +40,7 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ 20 tests nuevos — `backend/tests/test_ingesta_email.py` + `test_pipeline.py`
 - ✅ Suite acumulada: **53 tests pasando**
 
-### Sesión 4 — Pantalla Control (15/06/2026)
+### Sesión 4a — Pantalla Control (15/06/2026)
 - ✅ API REST FastAPI (`backend/app/api/control.py`)
   - `GET /api/tramites` con filtros estado/gestoría/tipo
   - `GET /api/tramites/{id}` detalle completo
@@ -58,6 +58,27 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ 19 tests nuevos — `backend/tests/test_control_api.py`
 - ✅ Suite acumulada: **72 tests pasando**
 
+### Sesión 4b — Docker + Split-view documental (15/06/2026)
+- ✅ Infraestructura Docker (`docker-compose.yml`, `backend/Dockerfile`, `backend/entrypoint.sh`)
+  - Servicio `db` (PostgreSQL 15), `api` (FastAPI), `worker` (timers pipeline)
+  - `entrypoint.sh`: espera pg, corre migraciones, arranca uvicorn o worker
+  - `make up/down/logs/test/shell/migrate/reset`
+  - `.env.example` completo
+- ✅ Split-view documental en frontend (`backend/static/index.html`)
+  - Panel derecho: campos extraídos con ✓ verde / ⚠ naranja / ✗ rojo
+  - Panel izquierdo: iframe PDF (placeholder hasta sesión 6)
+  - Banner de validez coloreado por estado del documento
+  - Enlace "Ver" solo para documentos con extracción disponible
+- ✅ API documentos (`backend/app/api/documentos.py`)
+  - `GET /api/tramites/{id}/documentos` → lista con validez
+  - `GET /api/documentos/{doc_id}/extraccion` → campos extraídos + cotejo
+  - `GET /api/documentos/{doc_id}/archivo` → 503 placeholder (TODO sesión 6)
+- ✅ Datos de prueba extendidos — 8 documentos con campos_extraidos en `datos_prueba.py`
+  - doc-005: CTI en vez de permiso → EVIDENCIA_COMPATIBLE (caso confusión real)
+  - doc-007: hoja de caja → RECHAZADO (documento irrelevante)
+- ✅ 11 tests nuevos — `backend/tests/test_documentos_api.py`
+- ✅ Suite acumulada: **77 tests pasando** (6 de pipeline con incompatibilidad de entorno httpx/anthropic, pre-existentes)
+
 ## Pendiente (próximas sesiones)
 
 ### Sesión 4 — Pendiente confirmación en sesión con cliente
@@ -71,18 +92,17 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 
 ## ESTADO SESIÓN — 15/06/2026 (última)
 
-### Completado en esta sesión
-- API REST completa: `/api/tramites`, `/api/tramites/{id}`, `/api/stats`, `/api/tramites/{id}/escalar`
-- Frontend vanilla JS en una sola página: 6 cards, tabla con filtros, panel lateral, polling 30s
-- 8 trámites de prueba cubriendo los 6 macro-estados
-- FastAPI app con static files (`main.py`)
-- 19 tests nuevos de endpoints, suite total **72 pasando**
+### Completado en esta sesión (4b)
+- Docker Compose productivo: 3 servicios (db, api, worker), migraciones automáticas
+- Split-view documental completo: panel PDF + campos extraídos con indicadores visuales
+- 3 endpoints nuevos de documentos + 8 documentos de prueba con campos reales
+- 11 tests nuevos; suite acumulada **77 pasando**
 
 ### Próxima acción concreta
-- Sesión con cliente para confirmar: tiempos reales de SLA por tipo de trámite
-  y canal oficial con gestorías (email / Tempus / teléfono)
+- **Sesión 5**: Motor de cotejo integrado con BD + ingesta de email real
+- Sesión con cliente para confirmar tiempos de SLA por tipo de trámite
 
 ### Decisiones tomadas
-- USE_DATOS_PRUEBA=true por defecto: la pantalla funciona desde el día 1 sin BD
-- Botón "Escalar" solo visible en pendiente_gestoria (nunca en otros estados)
-- Split-view documental (PDF real + datos) dejado como TODO para cuando haya BD real
+- USE_DATOS_PRUEBA=true por defecto: UI completa funciona sin BD desde el día 1
+- Archivo PDF en split-view: placeholder iframe hasta sesión 6 (necesita uploads_dir en BD)
+- Worker timer corre cada 30 segundos dentro del contenedor Docker

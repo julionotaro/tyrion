@@ -1,5 +1,5 @@
 """
-Datos de prueba para la Pantalla Control.
+Datos de prueba para la Pantalla Control y el Split-view documental.
 
 Se usan cuando USE_DATOS_PRUEBA=true en config (sin BD real conectada).
 Cubren los 6 macro-estados para poder ver la pantalla completa desde el primer día.
@@ -17,6 +17,168 @@ def _hace(minutos: int) -> str:
     return (_AHORA - timedelta(minutes=minutos)).isoformat()
 
 
+# Catálogo de documentos simulados con campos extraídos por tipo.
+# Cada documento tiene un id único, campos extraídos y resultado de cotejo.
+DOCUMENTOS_PRUEBA: dict[str, dict[str, Any]] = {
+    "doc-001": {
+        "id": "doc-001",
+        "tramite_id": "t-001",
+        "nombre": "permiso.pdf",
+        "tipo_detectado": "permiso_circulacion",
+        "validez": "VALIDO",
+        "confianza": "ALTA",
+        "confianza_score": 0.97,
+        # Simulación de PDF: URL de un PDF de muestra público
+        "archivo_url": "/static/muestra_permiso.pdf",
+        "tiene_archivo": False,  # en pruebas no hay PDF real
+        "campos_extraidos": [
+            {"campo": "matricula",          "valor": "1234 ABC",     "estado": "valido"},
+            {"campo": "titular",            "valor": "Juan García",  "estado": "valido"},
+            {"campo": "marca_modelo",       "valor": "SEAT Ibiza",   "estado": "valido"},
+            {"campo": "fecha_matriculacion","valor": "15/03/2018",   "estado": "valido"},
+            {"campo": "num_bastidor",       "valor": "VS6RFD000X1234","estado": "valido"},
+        ],
+        "justificacion": "Encabezado 'Permiso de Circulación' visible. Todos los campos presentes.",
+    },
+    "doc-002": {
+        "id": "doc-002",
+        "tramite_id": "t-002",
+        "nombre": "permiso.pdf",
+        "tipo_detectado": "permiso_circulacion",
+        "validez": "VALIDO",
+        "confianza": "ALTA",
+        "confianza_score": 0.95,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "matricula",    "valor": "5678 DEF",   "estado": "valido"},
+            {"campo": "titular",      "valor": "Ana Martín", "estado": "valido"},
+            {"campo": "marca_modelo", "valor": "VW Golf",    "estado": "valido"},
+            {"campo": "fecha_matriculacion", "valor": "02/07/2021", "estado": "valido"},
+        ],
+        "justificacion": "Documento DGT correcto. Todos los campos coinciden con el trámite.",
+    },
+    "doc-003": {
+        "id": "doc-003",
+        "tramite_id": "t-002",
+        "nombre": "modelo620.pdf",
+        "tipo_detectado": "modelo_620",
+        "validez": "VALIDO",
+        "confianza": "ALTA",
+        "confianza_score": 0.91,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "transmitente",  "valor": "Pedro Ruiz",     "estado": "valido"},
+            {"campo": "adquirente",    "valor": "Ana Martín",     "estado": "valido"},
+            {"campo": "importe",       "valor": "8.500 €",        "estado": "valido"},
+            {"campo": "fecha_liquidacion", "valor": "14/06/2026", "estado": "valido"},
+            {"campo": "numero_modelo", "valor": "620",            "estado": "valido"},
+        ],
+        "justificacion": "Formulario 620 con todos los campos de liquidación presentes.",
+    },
+    "doc-004": {
+        "id": "doc-004",
+        "tramite_id": "t-002",
+        "nombre": "dni_comprador.pdf",
+        "tipo_detectado": "dni",
+        "validez": "VALIDO",
+        "confianza": "ALTA",
+        "confianza_score": 0.98,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "nombre",    "valor": "Ana Martín López", "estado": "valido"},
+            {"campo": "dni",       "valor": "12345678A",        "estado": "valido"},
+            {"campo": "caducidad", "valor": "01/01/2030",       "estado": "valido"},
+        ],
+        "justificacion": "DNI vigente, datos legibles.",
+    },
+    "doc-005": {
+        "id": "doc-005",
+        "tramite_id": "t-003",
+        # Caso de error: envían CTI en lugar de permiso_circulacion
+        "nombre": "cti.pdf",
+        "tipo_detectado": "cti",
+        "validez": "EVIDENCIA_COMPATIBLE",
+        "confianza": "ALTA",
+        "confianza_score": 0.93,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "matricula",   "valor": "9012 GHI",  "estado": "valido"},
+            {"campo": "resultado_itv","valor": "FAVORABLE", "estado": "valido"},
+            {"campo": "fecha_itv",   "valor": "10/03/2026", "estado": "valido"},
+            # Campo que falta respecto al permiso requerido:
+            {"campo": "titular",     "valor": "(no visible en CTI)", "estado": "evidencia"},
+        ],
+        "justificacion": (
+            "Se detectó CTI/ficha ITV, no el Permiso de Circulación requerido. "
+            "Son documentos relacionados pero no intercambiables (regla de oro). "
+            "Se solicitó a la gestoría el documento correcto."
+        ),
+    },
+    "doc-006": {
+        "id": "doc-006",
+        "tramite_id": "t-003",
+        "nombre": "dni.pdf",
+        "tipo_detectado": "dni",
+        "validez": "VALIDO",
+        "confianza": "ALTA",
+        "confianza_score": 0.96,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "nombre",    "valor": "Carlos Ruiz", "estado": "valido"},
+            {"campo": "dni",       "valor": "87654321B",   "estado": "valido"},
+            {"campo": "caducidad", "valor": "15/08/2028",  "estado": "valido"},
+        ],
+        "justificacion": "DNI correcto y vigente.",
+    },
+    "doc-007": {
+        "id": "doc-007",
+        "tramite_id": "t-008",
+        # Caso de rechazo: envían hoja_caja donde se pide permiso
+        "nombre": "hoja_caja.pdf",
+        "tipo_detectado": "hoja_caja",
+        "validez": "RECHAZADO",
+        "confianza": "ALTA",
+        "confianza_score": 0.94,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "tipo_documento", "valor": "Hoja de caja diaria", "estado": "rechazado"},
+            {"campo": "gestoria",       "valor": "Gestoria Ruiz",       "estado": "rechazado"},
+            {"campo": "fecha",          "valor": "15/06/2026",          "estado": "rechazado"},
+        ],
+        "justificacion": (
+            "Documento identificado como hoja_caja. "
+            "No corresponde al requisito permiso_circulacion ni a ningún tipo relacionado. "
+            "Caso escalado al administrativo."
+        ),
+    },
+    "doc-008": {
+        "id": "doc-008",
+        "tramite_id": "t-008",
+        "nombre": "dni.pdf",
+        "tipo_detectado": "dni",
+        "validez": "VALIDO",
+        "confianza": "ALTA",
+        "confianza_score": 0.97,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "nombre",    "valor": "María Ruiz", "estado": "valido"},
+            {"campo": "dni",       "valor": "11223344C",  "estado": "valido"},
+            {"campo": "caducidad", "valor": "30/06/2027", "estado": "valido"},
+        ],
+        "justificacion": "DNI correcto y vigente.",
+    },
+}
+
+# Índice: tramite_id → lista de doc_ids
+_DOC_POR_TRAMITE: dict[str, list[str]] = {}
+for _doc_id, _doc in DOCUMENTOS_PRUEBA.items():
+    _DOC_POR_TRAMITE.setdefault(_doc["tramite_id"], []).append(_doc_id)
+
+
+def docs_de_tramite(tramite_id: str) -> list[dict[str, Any]]:
+    return [DOCUMENTOS_PRUEBA[d] for d in _DOC_POR_TRAMITE.get(tramite_id, [])]
+
+
 # 8 trámites cubriendo todos los macro-estados
 TRAMITES_PRUEBA: list[dict[str, Any]] = [
     {
@@ -30,7 +192,8 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(5),
         "alerta": False,
         "documentos": [
-            {"nombre": "permiso.pdf", "tipo_detectado": "permiso_circulacion",
+            {"id": "doc-001", "nombre": "permiso.pdf",
+             "tipo_detectado": "permiso_circulacion",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -50,11 +213,14 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(45),
         "alerta": False,
         "documentos": [
-            {"nombre": "permiso.pdf", "tipo_detectado": "permiso_circulacion",
+            {"id": "doc-002", "nombre": "permiso.pdf",
+             "tipo_detectado": "permiso_circulacion",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "modelo620.pdf", "tipo_detectado": "modelo_620",
+            {"id": "doc-003", "nombre": "modelo620.pdf",
+             "tipo_detectado": "modelo_620",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "dni_comprador.pdf", "tipo_detectado": "dni",
+            {"id": "doc-004", "nombre": "dni_comprador.pdf",
+             "tipo_detectado": "dni",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -72,11 +238,13 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "gestoria_email": "ruiz@gestorias.es",
         "estado": "pendiente_gestoria",
         "fecha_entrada": _hace(90),
-        "alerta": True,  # lleva 90 min sin resolverse
+        "alerta": True,
         "documentos": [
-            {"nombre": "cti.pdf", "tipo_detectado": "cti",
+            {"id": "doc-005", "nombre": "cti.pdf",
+             "tipo_detectado": "cti",
              "validez": "EVIDENCIA_COMPATIBLE", "confianza": "ALTA"},
-            {"nombre": "dni.pdf", "tipo_detectado": "dni",
+            {"id": "doc-006", "nombre": "dni.pdf",
+             "tipo_detectado": "dni",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -101,9 +269,10 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "gestoria_email": "fernandez@gestorias.es",
         "estado": "pendiente_gestoria",
         "fecha_entrada": _hace(25),
-        "alerta": False,  # solo 25 min, dentro del SLA
+        "alerta": False,
         "documentos": [
-            {"nombre": "permiso.pdf", "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "permiso.pdf",
+             "tipo_detectado": "permiso_circulacion",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -125,13 +294,17 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(120),
         "alerta": False,
         "documentos": [
-            {"nombre": "permiso.pdf", "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "permiso.pdf",
+             "tipo_detectado": "permiso_circulacion",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "ficha.pdf", "tipo_detectado": "ficha_tecnica",
+            {"id": None, "nombre": "ficha.pdf",
+             "tipo_detectado": "ficha_tecnica",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "justificante.pdf", "tipo_detectado": "justificante_pago",
+            {"id": None, "nombre": "justificante.pdf",
+             "tipo_detectado": "justificante_pago",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "dni.pdf", "tipo_detectado": "dni",
+            {"id": None, "nombre": "dni.pdf",
+             "tipo_detectado": "dni",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -154,13 +327,17 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(180),
         "alerta": False,
         "documentos": [
-            {"nombre": "permiso.pdf", "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "permiso.pdf",
+             "tipo_detectado": "permiso_circulacion",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "modelo620.pdf", "tipo_detectado": "modelo_620",
+            {"id": None, "nombre": "modelo620.pdf",
+             "tipo_detectado": "modelo_620",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "dni.pdf", "tipo_detectado": "dni",
+            {"id": None, "nombre": "dni.pdf",
+             "tipo_detectado": "dni",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "contrato.pdf", "tipo_detectado": "contrato_compraventa",
+            {"id": None, "nombre": "contrato.pdf",
+             "tipo_detectado": "contrato_compraventa",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -183,13 +360,17 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "alerta": False,
         "num_comprobante_dgt": "DGT-2026-00123",
         "documentos": [
-            {"nombre": "permiso.pdf", "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "permiso.pdf",
+             "tipo_detectado": "permiso_circulacion",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "modelo620.pdf", "tipo_detectado": "modelo_620",
+            {"id": None, "nombre": "modelo620.pdf",
+             "tipo_detectado": "modelo_620",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "dni.pdf", "tipo_detectado": "dni",
+            {"id": None, "nombre": "dni.pdf",
+             "tipo_detectado": "dni",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"nombre": "contrato.pdf", "tipo_detectado": "contrato_compraventa",
+            {"id": None, "nombre": "contrato.pdf",
+             "tipo_detectado": "contrato_compraventa",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -211,11 +392,13 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "gestoria_email": "ruiz@gestorias.es",
         "estado": "pendiente_gestoria",
         "fecha_entrada": _hace(75),
-        "alerta": True,  # escalado al admin por documento rechazado
+        "alerta": True,
         "documentos": [
-            {"nombre": "hoja_caja.pdf", "tipo_detectado": "hoja_caja",
+            {"id": "doc-007", "nombre": "hoja_caja.pdf",
+             "tipo_detectado": "hoja_caja",
              "validez": "RECHAZADO", "confianza": "ALTA"},
-            {"nombre": "dni.pdf", "tipo_detectado": "dni",
+            {"id": "doc-008", "nombre": "dni.pdf",
+             "tipo_detectado": "dni",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
