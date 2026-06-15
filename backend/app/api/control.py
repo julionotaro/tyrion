@@ -20,6 +20,7 @@ from app.api.datos_prueba import (
     TRAMITES_PRUEBA,
 )
 from app.api.deps import get_usar_datos_prueba
+from app.repositories.repositorio_postgres import RepositorioPostgres
 
 router = APIRouter(prefix="/api", tags=["control"])
 
@@ -71,11 +72,19 @@ class EscalarResponse(BaseModel):
 
 # ---------- helpers ----------
 
-def _tramites_fuente(usar_prueba: bool) -> list[dict[str, Any]]:
+def _tramites_fuente(
+    usar_prueba: bool,
+    estado: str | None = None,
+    gestoria: str | None = None,
+    tipo: str | None = None,
+) -> list[dict[str, Any]]:
     if usar_prueba:
         return TRAMITES_PRUEBA
-    # TODO sesión 5: consultar PostgreSQL
-    raise HTTPException(503, "BD real no configurada. Activar USE_DATOS_PRUEBA=true.")
+    try:
+        repo = RepositorioPostgres()
+        return repo.listar_tramites(estado=estado, gestoria=gestoria, tipo=tipo)
+    except Exception as exc:
+        raise HTTPException(503, f"Error al consultar la base de datos: {exc}") from exc
 
 
 def _a_resumen(t: dict[str, Any]) -> TramiteResumen:
@@ -103,15 +112,17 @@ def listar_tramites(
     usar_prueba: bool = Depends(get_usar_datos_prueba),
 ) -> list[TramiteResumen]:
     """Lista de trámites con filtros opcionales. Alimenta la tabla principal."""
-    tramites = _tramites_fuente(usar_prueba)
-
-    if estado:
-        tramites = [t for t in tramites if t["estado"] == estado]
-    if gestoria:
-        tramites = [t for t in tramites
-                    if gestoria.lower() in t["gestoria"].lower()]
-    if tipo:
-        tramites = [t for t in tramites if t["tipo"] == tipo.upper()]
+    if usar_prueba:
+        tramites = _tramites_fuente(usar_prueba)
+        if estado:
+            tramites = [t for t in tramites if t["estado"] == estado]
+        if gestoria:
+            tramites = [t for t in tramites
+                        if gestoria.lower() in t["gestoria"].lower()]
+        if tipo:
+            tramites = [t for t in tramites if t["tipo"] == tipo.upper()]
+    else:
+        tramites = _tramites_fuente(usar_prueba, estado=estado, gestoria=gestoria, tipo=tipo)
 
     return [_a_resumen(t) for t in tramites]
 
@@ -122,25 +133,49 @@ def detalle_tramite(
     usar_prueba: bool = Depends(get_usar_datos_prueba),
 ) -> TramiteDetalle:
     """Detalle completo de un trámite: documentos, historial, avisos."""
-    tramites = _tramites_fuente(usar_prueba)
-    tramite = next((t for t in tramites if t["id"] == tramite_id), None)
-    if not tramite:
-        raise HTTPException(404, f"Trámite '{tramite_id}' no encontrado.")
+    if usar_prueba:
+        tramites = _tramites_fuente(usar_prueba)
+        tramite = next((t for t in tramites if t["id"] == tramite_id), None)
+        if not tramite:
+            raise HTTPException(404, f"Trámite '{tramite_id}' no encontrado.")
+        documentos = tramite.get("documentos", [])
+        historial = tramite.get("historial", [])
+        avisos_pendientes = tramite.get("avisos_pendientes", [])
+        alerta = tramite.get("alerta", False)
+    else:
+        try:
+            repo = RepositorioPostgres()
+            tramite = repo.obtener_tramite(tramite_id)
+            if not tramite:
+                raise HTTPException(404, f"Trámite '{tramite_id}' no encontrado.")
+            documentos = repo.documentos_de_tramite(tramite_id)
+            mensajes = repo.mensajes_de_tramite(tramite_id)
+            historial = []
+            avisos_pendientes = [
+                {"tipo": m["tipo"], "asunto": m["asunto"], "preparado_at": str(m["preparado_at"])}
+                for m in mensajes if not m.get("enviado_at")
+            ]
+            alerta = bool(avisos_pendientes)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(503, f"Error al consultar la base de datos: {exc}") from exc
+
     return TramiteDetalle(
         id=tramite["id"],
         tipo=tramite["tipo"],
         matricula=tramite.get("matricula"),
         bastidor=tramite.get("bastidor"),
         gestoria=tramite["gestoria"],
-        gestoria_email=tramite["gestoria_email"],
+        gestoria_email=tramite.get("gestoria_email", ""),
         estado=tramite["estado"],
         estado_label=ETIQUETAS_ESTADO.get(tramite["estado"], tramite["estado"]),
-        fecha_entrada=tramite["fecha_entrada"],
-        alerta=tramite.get("alerta", False),
+        fecha_entrada=str(tramite.get("fecha_entrada", "")),
+        alerta=alerta,
         num_comprobante_dgt=tramite.get("num_comprobante_dgt"),
-        documentos=tramite.get("documentos", []),
-        historial=tramite.get("historial", []),
-        avisos_pendientes=tramite.get("avisos_pendientes", []),
+        documentos=documentos,
+        historial=historial,
+        avisos_pendientes=avisos_pendientes,
     )
 
 
@@ -150,7 +185,7 @@ def stats(
 ) -> StatsResponse:
     """Conteos por macro-estado para los 6 cards superiores del dashboard."""
     tramites = _tramites_fuente(usar_prueba)
-    conteos = {estado: 0 for estado in MACRO_ESTADOS}
+    conteos: dict[str, int] = {estado: 0 for estado in MACRO_ESTADOS}
     alertas = 0
     for t in tramites:
         estado = t.get("estado", "recibido")

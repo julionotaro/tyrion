@@ -321,3 +321,11 @@ class Pipeline:
             logger.warning("Timer escalado disparado para trámite %s.", tramite_id)
 
         return nuevos
+
+
+def crear_repositorio() -> RepositorioPipeline:
+    """Devuelve RepositorioPostgres o RepositorioEnMemoria según USE_DATOS_PRUEBA."""
+    if get_settings().use_datos_prueba:
+        return RepositorioEnMemoria()
+    from app.repositories.repositorio_postgres import RepositorioPostgres
+    return RepositorioPostgres()

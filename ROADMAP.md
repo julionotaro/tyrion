@@ -90,19 +90,39 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - 🔜 Pantalla Control (6 macro-estados) — FastAPI + frontend mínimo
 - 🔜 Cruce hoja de caja / albarán SAGE
 
+### Sesión 5 — Fix httpx/anthropic + Repositorio PostgreSQL (15/06/2026)
+- ✅ Fix incompatibilidad httpx 0.28 / anthropic 0.39 (`anthropic` → `0.109.1`)
+  - 6 tests de `test_pipeline.py` que fallaban por `proxies` kwarg eliminado en httpx 0.28
+  - Suite completa: **83 tests pasando, 0 fallos**
+- ✅ Repositorio PostgreSQL (`backend/app/repositories/repositorio_postgres.py`)
+  - Implementa la misma interfaz que `RepositorioEnMemoria` (intercambiable sin cambiar Pipeline)
+  - `guardar_email_procesado()` con `ON CONFLICT DO UPDATE` (idempotente)
+  - `mensajes_pendientes_de_aviso2/escalado()` con umbral de tiempo desde settings
+  - `listar_tramites()`, `obtener_tramite()`, `documentos_de_tramite()`, `mensajes_de_tramite()` para la Pantalla Control
+  - Transacciones explícitas con `conn.commit()` + rollback automático en error
+- ✅ `pipeline.py` — nueva función `crear_repositorio()` que selecciona Postgres o EnMemoria según `USE_DATOS_PRUEBA`
+- ✅ `control.py` — endpoints leen de PostgreSQL cuando `USE_DATOS_PRUEBA=false`
+  - Contrato de respuesta idéntico: sin cambios en frontend
+- ✅ `pytest.ini` — mark `integration` registrado
+- ✅ `test_repositorio_postgres.py` — 5 tests marcados `@pytest.mark.integration`
+  - Se saltan automáticamente sin BD disponible
+  - Correr con: `pytest -m integration` cuando hay Docker up
+- ⏭ TAREA 3 (verificación Docker end-to-end): Docker daemon no disponible en entorno cloud
+  - Ejecutar `make up && curl http://localhost:8000` en local para verificar
+
 ## ESTADO SESIÓN — 15/06/2026 (última)
 
-### Completado en esta sesión (4b)
-- Docker Compose productivo: 3 servicios (db, api, worker), migraciones automáticas
-- Split-view documental completo: panel PDF + campos extraídos con indicadores visuales
-- 3 endpoints nuevos de documentos + 8 documentos de prueba con campos reales
-- 11 tests nuevos; suite acumulada **77 pasando**
+### Completado en esta sesión (5)
+- Fix httpx/anthropic: 83 tests, todos verdes (cero fallos)
+- RepositorioPostgres completo: pipeline y API listos para BD real con flip de `USE_DATOS_PRUEBA=false`
+- Tests de integración marcados y skippables automáticamente sin BD
 
 ### Próxima acción concreta
-- **Sesión 5**: Motor de cotejo integrado con BD + ingesta de email real
-- Sesión con cliente para confirmar tiempos de SLA por tipo de trámite
+- **Sesión 6**: Ingesta de email real (IMAP) + SMTP de avisos + verificación Docker end-to-end
+- Archivo PDF en split-view (GET /documentos/{id}/archivo con FileResponse real)
+- Sesión con cliente: confirmar tiempos SLA por tipo de trámite y canal con gestorías
 
 ### Decisiones tomadas
-- USE_DATOS_PRUEBA=true por defecto: UI completa funciona sin BD desde el día 1
-- Archivo PDF en split-view: placeholder iframe hasta sesión 6 (necesita uploads_dir en BD)
-- Worker timer corre cada 30 segundos dentro del contenedor Docker
+- `RepositorioPostgres` usa psycopg2 síncrono (consistente con migraciones y el worker)
+- `crear_repositorio()` en pipeline.py es el único punto de selección de backend de persistencia
+- Tests de integración se saltan en CI sin BD; se activan con `pytest -m integration` en entorno con Docker
