@@ -1,4 +1,12 @@
 """
+Catálogo del dominio de trámites de vehículos ante DGT.
+
+Incluye:
+  - TipoDocumento: tipos documentales que Tyrion reconoce.
+  - TipoTramite / ValidezVinculo: enums del dominio (espejan los tipos SQL).
+  - CHECKLIST_POR_TRAMITE: requisitos obligatorios por tipo (usados por el motor de cotejo
+    cuando no hay datos de base de datos disponibles, p.ej. en tests).
+
 Catálogo de tipos documentales del dominio de trámites de vehículos ante DGT.
 
 Fuente: Reglamentación general de vehículos título IV + vocabulario de la oficina
@@ -43,6 +51,45 @@ CONFUSIONES_FRECUENTES = {
 
 # Descripciones para el prompt del clasificador: qué distingue a cada documento
 # a simple vista (vocabulario real de la oficina).
+class TipoTramite(str, Enum):
+    """Tipos de trámite. Espeja el enum SQL `tipo_tramite`."""
+    TRANSFERENCIA = "TRANSFERENCIA"
+    MATRICULACION = "MATRICULACION"
+    BAJA = "BAJA"
+
+
+class ValidezVinculo(str, Enum):
+    """Validez de un documento respecto a un trámite. Vive en el vínculo, nunca en el documento.
+    Espeja el enum SQL `validez_vinculo`."""
+    VALIDO = "VALIDO"
+    EVIDENCIA_COMPATIBLE = "EVIDENCIA_COMPATIBLE"
+    RECHAZADO = "RECHAZADO"
+    NO_APLICA = "NO_APLICA"
+
+
+# Checklist mínimo por tipo de trámite (fuente: entrevista sesión 1).
+# La tabla `requisitos_tramite` en BD es la fuente viva; este diccionario
+# sirve de fallback y para tests sin BD.
+CHECKLIST_POR_TRAMITE: dict[TipoTramite, list[str]] = {
+    TipoTramite.TRANSFERENCIA: [
+        "permiso_circulacion",
+        "modelo_620",
+        "dni",
+        "contrato_compraventa",
+    ],
+    TipoTramite.MATRICULACION: [
+        "permiso_circulacion",
+        "ficha_tecnica",
+        "justificante_pago",
+        "dni",
+    ],
+    TipoTramite.BAJA: [
+        "permiso_circulacion",
+        "dni",
+    ],
+}
+
+
 RASGOS_DISTINTIVOS = {
     TipoDocumento.PERMISO_CIRCULACION: (
         "Documento oficial DGT que autoriza la circulación del vehículo. "
