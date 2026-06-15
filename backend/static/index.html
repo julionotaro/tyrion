@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tyrion — Pantalla Control</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --azul:    #2563eb; --azul-claro: #dbeafe;
+    --verde:   #16a34a; --verde-claro: #dcfce7;
+    --naranja: #ea580c; --naranja-claro: #ffedd5;
+    --rojo:    #dc2626; --rojo-claro: #fee2e2;
+    --gris:    #6b7280; --gris-claro: #f3f4f6;
+    --borde:   #e5e7eb;
+    --texto:   #111827;
+    --fondo:   #f9fafb;
+  }
+  body { font-family: system-ui, sans-serif; background: var(--fondo); color: var(--texto); font-size: 14px; }
+
+  /* ── HEADER ── */
+  header { background: #1e3a5f; color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
+  header span { font-size: 12px; color: #94a3b8; }
+  #badge-alertas { margin-left: auto; background: var(--rojo); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 700; display: none; }
+
+  /* ── CARDS ── */
+  #cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 16px 24px 0; }
+  .card {
+    background: #fff; border: 2px solid var(--borde); border-radius: 10px;
+    padding: 14px 16px; cursor: pointer; transition: border-color .15s, box-shadow .15s;
+    user-select: none;
+  }
+  .card:hover { border-color: var(--azul); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .card.activo { border-color: var(--azul); background: var(--azul-claro); }
+  .card .num { font-size: 32px; font-weight: 800; line-height: 1; color: var(--azul); }
+  .card .label { font-size: 11px; color: var(--gris); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
+  .card.con-alerta .num { color: var(--rojo); }
+
+  /* ── LAYOUT PRINCIPAL ── */
+  #main { display: flex; gap: 0; height: calc(100vh - 120px); padding: 16px 24px; gap: 16px; }
+
+  /* ── TABLA ── */
+  #panel-tabla { flex: 1; overflow-y: auto; background: #fff; border-radius: 10px; border: 1px solid var(--borde); }
+  #barra-filtros { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--borde); align-items: center; }
+  #barra-filtros input, #barra-filtros select {
+    border: 1px solid var(--borde); border-radius: 6px; padding: 6px 10px;
+    font-size: 13px; outline: none;
+  }
+  #barra-filtros input:focus, #barra-filtros select:focus { border-color: var(--azul); }
+  #btn-limpiar { margin-left: auto; font-size: 12px; color: var(--gris); cursor: pointer; background: none; border: none; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase;
+             letter-spacing: .4px; color: var(--gris); background: var(--gris-claro);
+             border-bottom: 1px solid var(--borde); position: sticky; top: 0; }
+  tbody tr { border-bottom: 1px solid var(--borde); cursor: pointer; transition: background .1s; }
+  tbody tr:hover { background: var(--azul-claro); }
+  tbody tr.seleccionada { background: var(--azul-claro); font-weight: 600; }
+  tbody td { padding: 10px 14px; vertical-align: middle; }
+  .badge-estado {
+    display: inline-block; border-radius: 12px; padding: 2px 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-recibido           { background: #e0f2fe; color: #0369a1; }
+  .badge-en_revision        { background: #fef9c3; color: #854d0e; }
+  .badge-pendiente_gestoria { background: var(--naranja-claro); color: var(--naranja); }
+  .badge-listo_dgt          { background: var(--verde-claro); color: var(--verde); }
+  .badge-en_cadeteria       { background: #ede9fe; color: #6d28d9; }
+  .badge-cerrado            { background: var(--gris-claro); color: var(--gris); }
+  .alerta-icon { color: var(--rojo); font-size: 16px; }
+  #sin-resultados { padding: 40px; text-align: center; color: var(--gris); display: none; }
+
+  /* ── PANEL LATERAL ── */
+  #panel-detalle {
+    width: 380px; background: #fff; border-radius: 10px; border: 1px solid var(--borde);
+    overflow-y: auto; display: none; flex-direction: column;
+  }
+  #panel-detalle.visible { display: flex; }
+  #detalle-header { padding: 16px; border-bottom: 1px solid var(--borde); }
+  #detalle-header h2 { font-size: 16px; font-weight: 700; }
+  #detalle-header .meta { font-size: 12px; color: var(--gris); margin-top: 4px; }
+  #btn-cerrar-detalle { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gris); }
+  #detalle-cuerpo { padding: 16px; flex: 1; }
+  .seccion-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+                    color: var(--gris); font-weight: 700; margin: 16px 0 8px; }
+  .seccion-titulo:first-child { margin-top: 0; }
+  .doc-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--borde); }
+  .doc-item:last-child { border-bottom: none; }
+  .doc-validez { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+  .doc-VALIDO              { background: var(--verde-claro); color: var(--verde); }
+  .doc-EVIDENCIA_COMPATIBLE{ background: var(--naranja-claro); color: var(--naranja); }
+  .doc-RECHAZADO           { background: var(--rojo-claro); color: var(--rojo); }
+  .doc-nombre { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-tipo   { font-size: 11px; color: var(--gris); }
+  .evento-item { padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: 12px; }
+  .evento-item:last-child { border-bottom: none; }
+  .evento-hora { font-size: 11px; color: var(--gris); }
+  .aviso-item { background: var(--naranja-claro); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; }
+  .aviso-tipo { font-weight: 700; color: var(--naranja); }
+  #btn-escalar {
+    display: none; width: calc(100% - 32px); margin: 0 16px 16px;
+    background: var(--rojo); color: #fff; border: none; border-radius: 8px;
+    padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  #btn-escalar:hover { background: #b91c1c; }
+  #btn-escalar:disabled { background: var(--gris); cursor: not-allowed; }
+
+  /* ── FOOTER ── */
+  #footer { text-align: right; padding: 4px 24px; font-size: 11px; color: var(--gris); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tyrion</h1>
+  <span>Pantalla Control — Colegio de Gestores</span>
+  <div id="badge-alertas">⚠ <span id="num-alertas">0</span> alertas</div>
+</header>
+
+<div id="cards"></div>
+
+<div id="main">
+  <div id="panel-tabla">
+    <div id="barra-filtros">
+      <input id="filtro-texto" type="text" placeholder="Buscar matrícula o gestoría…" style="width:220px">
+      <select id="filtro-tipo">
+        <option value="">Todos los tipos</option>
+        <option value="TRANSFERENCIA">Transferencia</option>
+        <option value="MATRICULACION">Matriculación</option>
+        <option value="BAJA">Baja</option>
+      </select>
+      <button id="btn-limpiar" onclick="limpiarFiltros()">✕ Limpiar filtros</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Matrícula / Bastidor</th>
+          <th>Gestoría</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th>Entrada</th>
+          <th>Docs</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div id="sin-resultados">Sin trámites para los filtros seleccionados.</div>
+  </div>
+
+  <div id="panel-detalle">
+    <div id="detalle-header">
+      <button id="btn-cerrar-detalle" onclick="cerrarDetalle()">×</button>
+      <h2 id="detalle-titulo">—</h2>
+      <div class="meta" id="detalle-meta"></div>
+    </div>
+    <div id="detalle-cuerpo"></div>
+    <button id="btn-escalar" onclick="escalar()">⚠ Escalar al administrativo</button>
+  </div>
+</div>
+
+<div id="footer">Actualización automática cada 30 s · <span id="ultima-actualizacion">—</span></div>
+
+<script>
+// ── Estado de la aplicación ──
+let estadoActivo = null;   // macro-estado seleccionado (card)
+let tramiteSeleccionado = null;
+let todosLosTramites = [];
+
+// ── API ──
+async function apiFetch(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  return r.json();
+}
+
+// ── Formateo ──
+function formatHora(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const pad = n => String(n).padStart(2,'0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function minutosDesde(iso) {
+  if (!iso) return 0;
+  const d = new Date(iso);
+  if (isNaN(d)) return 0;
+  return Math.floor((Date.now() - d) / 60000);
+}
+
+// ── Cards ──
+async function cargarStats() {
+  const stats = await apiFetch('/api/stats');
+  const cont = document.getElementById('cards');
+  const orden = ['recibido','en_revision','pendiente_gestoria','listo_dgt','en_cadeteria','cerrado'];
+  cont.innerHTML = orden.map(e => {
+    const n = stats.conteos[e] || 0;
+    const label = stats.etiquetas[e] || e;
+    const alerta = e === 'pendiente_gestoria' && n > 0 ? ' con-alerta' : '';
+    const activo = estadoActivo === e ? ' activo' : '';
+    return `<div class="card${alerta}${activo}" data-estado="${e}" onclick="filtrarPorCard('${e}')">
+      <div class="num">${n}</div>
+      <div class="label">${label}</div>
+    </div>`;
+  }).join('');
+
+  // Badge de alertas en header
+  const badge = document.getElementById('badge-alertas');
+  const numEl = document.getElementById('num-alertas');
+  if (stats.alertas > 0) {
+    badge.style.display = 'block';
+    numEl.textContent = stats.alertas;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── Tabla ──
+async function cargarTramites() {
+  const params = new URLSearchParams();
+  if (estadoActivo) params.set('estado', estadoActivo);
+  const tipo = document.getElementById('filtro-tipo').value;
+  if (tipo) params.set('tipo', tipo);
+
+  todosLosTramites = await apiFetch('/api/tramites?' + params.toString());
+  renderTabla();
+}
+
+function renderTabla() {
+  const texto = document.getElementById('filtro-texto').value.toLowerCase();
+  const filtrados = texto
+    ? todosLosTramites.filter(t =>
+        (t.matricula||'').toLowerCase().includes(texto) ||
+        (t.bastidor||'').toLowerCase().includes(texto) ||
+        t.gestoria.toLowerCase().includes(texto))
+    : todosLosTramites;
+
+  const tbody = document.getElementById('tbody');
+  const sinRes = document.getElementById('sin-resultados');
+
+  if (filtrados.length === 0) {
+    tbody.innerHTML = '';
+    sinRes.style.display = 'block';
+    return;
+  }
+  sinRes.style.display = 'none';
+
+  tbody.innerHTML = filtrados.map(t => {
+    const alertaIcon = t.alerta ? '<span class="alerta-icon" title="Requiere atención">⚠</span>' : '';
+    const id = t.matricula || t.bastidor || t.id;
+    const mins = minutosDesde(t.fecha_entrada);
+    const hora = formatHora(t.fecha_entrada);
+    const selClass = tramiteSeleccionado === t.id ? ' class="seleccionada"' : '';
+    return `<tr${selClass} onclick="abrirDetalle('${t.id}')">
+      <td>${alertaIcon}</td>
+      <td><strong>${id}</strong></td>
+      <td>${t.gestoria}</td>
+      <td>${t.tipo}</td>
+      <td><span class="badge-estado badge-${t.estado}">${t.estado_label}</span></td>
+      <td>${hora} <span style="color:var(--gris);font-size:11px">(${mins}m)</span></td>
+      <td>${t.num_docs}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Filtros ──
+function filtrarPorCard(estado) {
+  estadoActivo = estadoActivo === estado ? null : estado;
+  cargarStats();
+  cargarTramites();
+}
+
+function limpiarFiltros() {
+  estadoActivo = null;
+  document.getElementById('filtro-texto').value = '';
+  document.getElementById('filtro-tipo').value = '';
+  cargarStats();
+  cargarTramites();
+}
+
+document.getElementById('filtro-texto').addEventListener('input', renderTabla);
+document.getElementById('filtro-tipo').addEventListener('change', cargarTramites);
+
+// ── Panel detalle ──
+async function abrirDetalle(id) {
+  tramiteSeleccionado = id;
+  renderTabla();
+
+  const t = await apiFetch(`/api/tramites/${id}`);
+  const panel = document.getElementById('panel-detalle');
+  panel.classList.add('visible');
+
+  document.getElementById('detalle-titulo').textContent =
+    (t.matricula || t.bastidor || id) + ' — ' + t.tipo;
+  document.getElementById('detalle-meta').textContent =
+    `${t.gestoria} · ${t.estado_label}` +
+    (t.num_comprobante_dgt ? ` · DGT: ${t.num_comprobante_dgt}` : '');
+
+  // Documentos
+  const docsHtml = t.documentos.length === 0
+    ? '<p style="color:var(--gris);font-size:12px">Sin documentos recibidos.</p>'
+    : t.documentos.map(d => `
+      <div class="doc-item">
+        <span class="doc-validez doc-${d.validez}">${d.validez.replace('_',' ')}</span>
+        <span class="doc-nombre" title="${d.nombre}">${d.nombre}</span>
+        <span class="doc-tipo">${d.tipo_detectado}</span>
+      </div>`).join('');
+
+  // Avisos pendientes
+  const avisosHtml = t.avisos_pendientes.length === 0 ? '' :
+    '<p class="seccion-titulo">Avisos pendientes</p>' +
+    t.avisos_pendientes.map(a => `
+      <div class="aviso-item">
+        <span class="aviso-tipo">${a.tipo.toUpperCase()}</span>
+        · ${a.requisito}
+        <span style="color:var(--gris);font-size:11px"> · ${formatHora(a.enviado_at)}</span>
+      </div>`).join('');
+
+  // Historial
+  const histHtml = [...t.historial].reverse().map(h => `
+    <div class="evento-item">
+      <div>${h.evento}</div>
+      <div class="evento-hora">${formatHora(h.momento)} · ${h.actor}</div>
+    </div>`).join('');
+
+  document.getElementById('detalle-cuerpo').innerHTML = `
+    <p class="seccion-titulo">Documentos (${t.documentos.length})</p>
+    ${docsHtml}
+    ${avisosHtml}
+    <p class="seccion-titulo">Historial</p>
+    ${histHtml}
+  `;
+
+  // Botón escalar: solo visible en pendiente_gestoria
+  const btnEscalar = document.getElementById('btn-escalar');
+  btnEscalar.style.display = t.estado === 'pendiente_gestoria' ? 'block' : 'none';
+  btnEscalar.disabled = false;
+  btnEscalar.dataset.id = id;
+}
+
+function cerrarDetalle() {
+  tramiteSeleccionado = null;
+  document.getElementById('panel-detalle').classList.remove('visible');
+  renderTabla();
+}
+
+// ── Escalar ──
+async function escalar() {
+  const id = document.getElementById('btn-escalar').dataset.id;
+  if (!id) return;
+  const btn = document.getElementById('btn-escalar');
+  btn.disabled = true;
+  btn.textContent = 'Escalando…';
+  try {
+    const r = await fetch(`/api/tramites/${id}/escalar`, { method: 'POST' });
+    const data = await r.json();
+    if (data.ok) {
+      alert('Trámite escalado al administrativo. Mensaje PREPARADO.');
+      await recargar();
+      await abrirDetalle(id);
+    } else {
+      alert('No se pudo escalar: ' + (data.detail || 'error'));
+      btn.disabled = false;
+      btn.textContent = '⚠ Escalar al administrativo';
+    }
+  } catch(e) {
+    alert('Error de red: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '⚠ Escalar al administrativo';
+  }
+}
+
+// ── Polling ──
+async function recargar() {
+  await Promise.all([cargarStats(), cargarTramites()]);
+  document.getElementById('ultima-actualizacion').textContent =
+    'última actualización: ' + new Date().toLocaleTimeString('es-ES');
+}
+
+// Arrancar + polling cada 30 s
+recargar();
+setInterval(recargar, 30_000);
+</script>
+</body>
+</html>

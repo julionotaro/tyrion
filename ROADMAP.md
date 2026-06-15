@@ -40,6 +40,24 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ 20 tests nuevos — `backend/tests/test_ingesta_email.py` + `test_pipeline.py`
 - ✅ Suite acumulada: **53 tests pasando**
 
+### Sesión 4 — Pantalla Control (15/06/2026)
+- ✅ API REST FastAPI (`backend/app/api/control.py`)
+  - `GET /api/tramites` con filtros estado/gestoría/tipo
+  - `GET /api/tramites/{id}` detalle completo
+  - `GET /api/stats` conteos para los 6 cards
+  - `POST /api/tramites/{id}/escalar` escalado manual
+- ✅ Frontend vanilla JS (`backend/static/index.html`)
+  - 6 cards de macro-estado clicables (filtran la tabla)
+  - Tabla con búsqueda texto, filtro tipo, badge de alerta
+  - Panel lateral: documentos con validez, historial, avisos pendientes
+  - Botón "Escalar" visible solo en pendiente_gestoria
+  - Polling automático cada 30 segundos
+  - Sin dependencias externas
+- ✅ Datos de prueba (`backend/app/api/datos_prueba.py`) — 8 trámites, 6 estados
+- ✅ `backend/app/main.py` — FastAPI app con router y static files
+- ✅ 19 tests nuevos — `backend/tests/test_control_api.py`
+- ✅ Suite acumulada: **72 tests pasando**
+
 ## Pendiente (próximas sesiones)
 
 ### Sesión 4 — Pendiente confirmación en sesión con cliente
@@ -51,23 +69,20 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - 🔜 Pantalla Control (6 macro-estados) — FastAPI + frontend mínimo
 - 🔜 Cruce hoja de caja / albarán SAGE
 
-## ESTADO SESIÓN — 15/06/2026
+## ESTADO SESIÓN — 15/06/2026 (última)
 
 ### Completado en esta sesión
-- Ingesta IMAP con deduplicación por Message-ID
-- Pipeline orquestador: email → clasificar → cotejar → avisos automáticos
-- Sistema de timers: aviso_1 (T+0) → aviso_2 (T+30) → escalado admin (T+60)
-- Modelos `EmailProcesado` y `MensajeSaliente`
-- Migración SQL 002
-- 20 tests nuevos, suite total 53 pasando
+- API REST completa: `/api/tramites`, `/api/tramites/{id}`, `/api/stats`, `/api/tramites/{id}/escalar`
+- Frontend vanilla JS en una sola página: 6 cards, tabla con filtros, panel lateral, polling 30s
+- 8 trámites de prueba cubriendo los 6 macro-estados
+- FastAPI app con static files (`main.py`)
+- 19 tests nuevos de endpoints, suite total **72 pasando**
 
 ### Próxima acción concreta
-- Confirmar con cliente: tiempos reales de SLA por tipo de trámite y canal
-  oficial de comunicación con gestorías (email / Tempus / teléfono)
+- Sesión con cliente para confirmar: tiempos reales de SLA por tipo de trámite
+  y canal oficial con gestorías (email / Tempus / teléfono)
 
 ### Decisiones tomadas
-- Pipeline mapea tipo_detectado → requisito directamente (1 adjunto por tipo en v1);
-  en sesión 4 se puede refinar con metadata del email si hace falta
-- Sin adjuntos = todos los requisitos faltan → aviso_1 se dispara igual
-  (comportamiento correcto: la gestoría siempre necesita saber qué enviar)
-- PREPARADO ≠ ENVIADO se mantiene: no hay integración SMTP real hasta confirmar canal
+- USE_DATOS_PRUEBA=true por defecto: la pantalla funciona desde el día 1 sin BD
+- Botón "Escalar" solo visible en pendiente_gestoria (nunca en otros estados)
+- Split-view documental (PDF real + datos) dejado como TODO para cuando haya BD real

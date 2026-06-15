@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_remitente: str = ""          # From de los avisos (por defecto = smtp_user)
 
+    # Pantalla Control: usar datos de prueba si no hay BD real
+    use_datos_prueba: bool = True
+
     # Escalado automático: gestoría primero, administrativo como último recurso.
     # T+0 aviso_1 (al detectar el faltante) → T+aviso2 aviso_2 → T+escalado admin.
     escalado_aviso2_min: int = 30
