@@ -46,6 +46,7 @@ from app.services.motor_cotejo import (
 )
 from app.services import registro_tramites
 from app.services.storage import guardar_archivo
+from app.api.store import DOCUMENTOS_CARGA
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +232,7 @@ def procesar_sesion(payload: ProcesarRequest) -> ProcesarResponse:
         )
         registro_tramites.agregar_tramite(tramite)
         registro_tramites.marcar_sesion_procesada(payload.sesion_id, tramite_id)
+        _registrar_documentos_en_store(tramite_id, docs_sesion, validez_por_tipo={})
         return ProcesarResponse(
             tramite_id=tramite_id, tipo_tramite=None,
             tipo_label="Sin determinar", subtipo="ninguno",
@@ -277,6 +279,9 @@ def procesar_sesion(payload: ProcesarRequest) -> ProcesarResponse:
     )
     registro_tramites.agregar_tramite(tramite)
     registro_tramites.marcar_sesion_procesada(payload.sesion_id, tramite_id)
+
+    validez_por_tipo = _resolver_validez(estado)
+    _registrar_documentos_en_store(tramite_id, docs_sesion, validez_por_tipo)
 
     logger.info(
         "Trámite manual %s creado: tipo=%s estado=%s listo_dgt=%s aviso=%s",
@@ -325,6 +330,54 @@ def estado_sesion(sesion_id: str) -> SesionResponse:
         documentos=docs,
         tramite_id=sesion.get("tramite_id"),
     )
+
+
+# ── Helpers internos ──────────────────────────────────────────────────────────
+
+def _resolver_validez(estado: EstadoChecklist) -> dict[str, str]:
+    """Mapea tipo_detectado → validez para los documentos del estado."""
+    result: dict[str, str] = {}
+    for tipo in estado.requisitos_validos:
+        result[tipo] = "VALIDO"
+    for tipo in estado.requisitos_evidencia:
+        result.setdefault(tipo, "EVIDENCIA_COMPATIBLE")
+    for tipo in estado.requisitos_rechazados:
+        result.setdefault(tipo, "RECHAZADO")
+    for tipo in estado.requisitos_faltantes:
+        result.setdefault(tipo, "FALTANTE")
+    return result
+
+
+def _registrar_documentos_en_store(
+    tramite_id: str,
+    docs_sesion: list[dict],
+    validez_por_tipo: dict[str, str],
+) -> None:
+    """Persiste cada documento en DOCUMENTOS_CARGA para que documentos.py lo sirva."""
+    for d in docs_sesion:
+        doc_id = d["doc_id"]
+        tipo = d["tipo_detectado"]
+        clf = d.get("_clasificacion")
+        campos: list[dict] = []
+        justificacion = d.get("justificacion", "")
+        if clf is not None:
+            campos = [
+                {"campo": k, "valor": str(v), "estado": "valido"}
+                for k, v in (clf.datos_extraidos or {}).items()
+            ]
+            justificacion = clf.justificacion or justificacion
+        DOCUMENTOS_CARGA[doc_id] = {
+            "id": doc_id,
+            "tramite_id": tramite_id,
+            "nombre": d["archivo"],
+            "tipo_detectado": tipo,
+            "validez": validez_por_tipo.get(tipo, "VALIDO"),
+            "confianza": d["confianza"],
+            "confianza_score": d["confianza_score"],
+            "tiene_archivo": True,
+            "campos_extraidos": campos,
+            "justificacion": justificacion,
+        }
 
 
 # ── Construcción del trámite (forma idéntica a TRAMITES_PRUEBA) ────────────────

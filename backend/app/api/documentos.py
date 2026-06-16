@@ -25,6 +25,8 @@ from app.services.storage import obtener_archivo
 
 from app.api.datos_prueba import DOCUMENTOS_PRUEBA, TRAMITES_PRUEBA
 from app.api.deps import get_usar_datos_prueba
+from app.api.store import DOCUMENTOS_CARGA
+from app.services import registro_tramites
 
 router = APIRouter(prefix="/api", tags=["documentos"])
 
@@ -64,6 +66,8 @@ class DocumentoExtraccion(BaseModel):
 def _tramite_o_404(tramite_id: str) -> dict[str, Any]:
     t = next((t for t in TRAMITES_PRUEBA if t["id"] == tramite_id), None)
     if not t:
+        t = registro_tramites.obtener_tramite(tramite_id)
+    if not t:
         raise HTTPException(404, f"Trámite '{tramite_id}' no encontrado.")
     return t
 
@@ -88,7 +92,9 @@ def listar_documentos(
             tipo_detectado=doc["tipo_detectado"],
             validez=doc["validez"],
             confianza=doc["confianza"],
-            tiene_extraccion=doc.get("id") is not None and doc["id"] in DOCUMENTOS_PRUEBA,
+            tiene_extraccion=doc.get("id") is not None and (
+                doc["id"] in DOCUMENTOS_PRUEBA or doc["id"] in DOCUMENTOS_CARGA
+            ),
         )
         for doc in tramite.get("documentos", [])
     ]
@@ -104,7 +110,7 @@ def extraccion_documento(
     Alimenta el panel derecho del Split-view: campos detectados con su
     indicador visual (✓ verde / ⚠ naranja / ✗ rojo).
     """
-    doc = DOCUMENTOS_PRUEBA.get(doc_id)
+    doc = DOCUMENTOS_PRUEBA.get(doc_id) or DOCUMENTOS_CARGA.get(doc_id)
     if not doc:
         raise HTTPException(404, f"Documento '{doc_id}' no encontrado o sin extracción.")
     return DocumentoExtraccion(

@@ -316,6 +316,14 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ Verificado end-to-end: 4 PDFs demo → tipo TRANSFERENCIA deducido → listo_dgt → visible en Pantalla Control
 - ✅ Suite acumulada: **234 pasando, 5 skipped, 0 fallos**
 
+### Fix puntual — GET /api/documentos/{doc_id}/extraccion para docs de carga (16/06/2026)
+- ✅ Nuevo `backend/app/api/store.py` — `DOCUMENTOS_CARGA` dict compartido entre carga y documentos
+- ✅ `carga.py` popula `DOCUMENTOS_CARGA` en `procesar_sesion()` con validez, campos y justificación
+- ✅ `documentos.py` busca en `DOCUMENTOS_CARGA` como fallback tras `DOCUMENTOS_PRUEBA`
+- ✅ `_tramite_o_404()` también busca en `registro_tramites` → `listar_documentos` funciona para trámites manuales
+- ✅ 4 tests nuevos — `backend/tests/test_documentos_carga.py`
+- ✅ Suite acumulada: **238 pasando, 5 skipped, 0 fallos**
+
 ## ESTADO SESIÓN — 16/06/2026 (última)
 
 ### Próxima acción concreta
