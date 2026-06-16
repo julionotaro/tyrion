@@ -1,0 +1,9 @@
+num_presentacion,matricula,tasa,adq_nif,razon_social,nombre_adquirente,tipo_transmision
+EXP-2026-001,1234ABC,110.50,12345678A,,Juan García López,compraventa
+EXP-2026-002,5678DEF,95.00,87654321B,,Ana Martín Pérez,compraventa
+EXP-2026-003,9012GHI,200.00,11223344C,Empresa SA,Empresa SA,empresa
+EXP-2026-004,3456JKL,110.50,22334455D,,Pedro Sánchez Torres,compraventa
+EXP-2026-005,7890MNO,95.00,33445566E,,María López Sanz,compraventa
+EXP-2026-006,2345PQR,150.00,44556677F,,Carlos Ruiz Moreno,compraventa
+EXP-2026-007,6789STU,110.50,55667788G,,Laura Díaz Fernández,compraventa
+EXP-2026-008,0123VWX,95.00,66778899H,,Roberto González Castro,compraventa

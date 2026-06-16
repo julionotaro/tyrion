@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       tyrion
+      POSTGRES_USER:     tyrion
+      POSTGRES_PASSWORD: tyrion
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tyrion -d tyrion"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app          # hot-reload en desarrollo
+      - ./data/uploads:/tmp/tyrion_uploads
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tyrion:tyrion@db:5432/tyrion
+      UPLOADS_DIR: /tmp/tyrion_uploads
+      WATCH_DIR: /tmp/tyrion_watch
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: worker
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+      - ./data/watch:/tmp/tyrion_watch
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://tyrion:tyrion@db:5432/tyrion
+      WATCH_DIR: /tmp/tyrion_watch
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pg_data:

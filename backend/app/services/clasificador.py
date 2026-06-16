@@ -100,15 +100,63 @@ def _leer_archivo_b64(ruta: str) -> tuple[str, str]:
     return MEDIA_TYPES[ext], base64.standard_b64encode(data).decode()
 
 
+class ClasificadorMock:
+    """Clasificador sin llamadas a API — para demo y tests sin ANTHROPIC_API_KEY."""
+
+    async def clasificar(
+        self,
+        ruta_archivo: str | None = None,
+        tipo_declarado: str | None = None,
+        contenido: bytes | None = None,
+    ) -> "ResultadoClasificacion":
+        tipo = TipoDocumento.DESCONOCIDO
+        if tipo_declarado:
+            try:
+                tipo = TipoDocumento(tipo_declarado.lower())
+            except ValueError:
+                pass
+        return ResultadoClasificacion(
+            tipo_detectado=tipo,
+            confianza_score=0.75,
+            confianza_nivel="MEDIA",
+            justificacion="Clasificador mock (sin API key): tipo inferido del nombre declarado.",
+        )
+
+
 class ClasificadorDocumental:
     """Clasifica documentos usando la visión de Claude.
 
     Se inyecta el cliente para poder testear sin llamadas reales a la API.
+    Si ANTHROPIC_API_KEY no está configurada, usa ClasificadorMock automáticamente.
     """
 
-    def __init__(self, client: AsyncAnthropic | None = None):
+    def __init__(self, client=None):
         settings = get_settings()
-        self._client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
+        self._mock_clf = ClasificadorMock()
+
+        if client is not None:
+            # Cliente inyectado (tests)
+            self._client = client
+            self._mock = False
+            self._openai = False
+        elif settings.openai_api_key:
+            # OpenAI tiene prioridad cuando ambas keys están configuradas
+            logger.info("Clasificador: modo OpenAI (%s)", settings.clasificador_openai_model)
+            from app.services.clasificador_openai import ClasificadorOpenAI
+            self._openai_clf = ClasificadorOpenAI()
+            self._client = None
+            self._mock = False
+            self._openai = True
+        elif settings.anthropic_api_key:
+            logger.info("Clasificador: modo Anthropic (%s)", settings.clasificador_model)
+            self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            self._mock = False
+            self._openai = False
+        else:
+            logger.info("Clasificador: modo mock (sin API key)")
+            self._client = None
+            self._mock = True
+            self._openai = False
         self._model = settings.clasificador_model
 
     async def clasificar(
@@ -116,15 +164,16 @@ class ClasificadorDocumental:
         ruta_archivo: str,
         tipo_declarado: str | None = None,
     ) -> ResultadoClasificacion:
-        """Clasifica un documento.
+        """Clasifica un documento. Delega al mock o a OpenAI según configuración."""
+        if self._mock:
+            return await self._mock_clf.clasificar(
+                ruta_archivo=ruta_archivo, tipo_declarado=tipo_declarado
+            )
+        if self._openai:
+            return await self._openai_clf.clasificar(
+                ruta_archivo=ruta_archivo, tipo_declarado=tipo_declarado
+            )
 
-        Args:
-            ruta_archivo: ruta al PDF/imagen en disco.
-            tipo_declarado: tipo que el remitente dijo que era (no confiable).
-
-        Returns:
-            ResultadoClasificacion con tipo detectado, confianza y datos extraídos.
-        """
         media_type, contenido_b64 = _leer_archivo_b64(ruta_archivo)
 
         bloque_doc = "document" if media_type == "application/pdf" else "image"

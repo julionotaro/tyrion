@@ -66,3 +66,12 @@ ANTHROPIC_API_KEY=sk-ant-...
 - Ingesta de email (entrada principal)
 - Pantalla Control (6 macro-estados)
 - Pendiente sesión 2: confirmar si existe estado de "observación DGT", flujo de matriculaciones, tiempos reales
+
+## Demo en 1 comando (sin cuenta de Anthropic)
+
+    git clone https://github.com/julionotaro/tyrion.git
+    cd tyrion
+    cp backend/.env.example backend/.env
+    make demo
+    # Abrir http://localhost:8000
+    # Sin ANTHROPIC_API_KEY usa clasificador mock — perfecto para demo local

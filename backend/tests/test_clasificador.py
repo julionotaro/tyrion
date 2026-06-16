@@ -168,3 +168,35 @@ async def test_archivo_no_soportado_lanza_error(tmp_path):
 
     with pytest.raises(ValueError, match="no soportado"):
         await clf.clasificar(str(ruta))
+
+
+# ---------- modo mock automático (sin API key) ----------
+
+@pytest.mark.asyncio
+async def test_clasificador_usa_mock_sin_api_key():
+    """Sin ANTHROPIC_API_KEY, ClasificadorDocumental debe usar ClasificadorMock."""
+    from unittest.mock import patch
+    from app.core.config import Settings
+    settings_sin_key = Settings(anthropic_api_key="")
+    with patch("app.services.clasificador.get_settings", return_value=settings_sin_key):
+        clf = ClasificadorDocumental()
+    assert clf._mock is True
+
+
+@pytest.mark.asyncio
+async def test_mock_clasifica_sin_archivo(tmp_path):
+    """ClasificadorMock devuelve resultado válido sin leer el archivo."""
+    from app.services.clasificador import ClasificadorMock
+    mock = ClasificadorMock()
+    res = await mock.clasificar(ruta_archivo="inexistente.pdf", tipo_declarado="dni")
+    assert res.tipo_detectado == TipoDocumento.DNI
+    assert res.confianza_score > 0
+
+
+@pytest.mark.asyncio
+async def test_clasificador_mock_acepta_tipo_desconocido():
+    """Mock con tipo no reconocido devuelve DESCONOCIDO."""
+    from app.services.clasificador import ClasificadorMock
+    mock = ClasificadorMock()
+    res = await mock.clasificar(tipo_declarado="tipo_inventado_xyz")
+    assert res.tipo_detectado == TipoDocumento.DESCONOCIDO
