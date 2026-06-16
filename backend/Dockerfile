@@ -2,7 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Dependencias del sistema mínimas (psycopg2 binario no las necesita)
+# Dependencias del sistema mínimas.
+# - psycopg2-binary: trae binarios, no necesita libpq-dev.
+# - PyMuPDF (fitz): los wheels manylinux traen libmupdf embebido,
+#   no requiere libmupdf-dev ni otras dependencias nativas.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*

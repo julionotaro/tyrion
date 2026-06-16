@@ -282,15 +282,53 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
   - `test_salud.py` (6): estructura, campos, mock sin keys, openai con key
 - ✅ Suite acumulada: **221 pasando, 5 skipped, 0 fallos**
 
+### Sesión 12 — Reescritura de carga manual con lógica correcta (16/06/2026)
+
+**Problema corregido**: la carga de la sesión 11 (1) pedía al usuario declarar el tipo de trámite (viola la premisa), (2) no conectaba con la Pantalla de Control, (3) fallaba con pdfplumber en Docker.
+
+**Principio rector**: el administrativo arrastra documentos; Tyrion deduce todo lo demás. El tipo de trámite NO lo declara el usuario — lo infiere el clasificador viendo los documentos.
+
+- ✅ **TAREA 1 — pdfplumber → PyMuPDF (fitz)**
+  - `requirements.txt`: `pdfplumber` reemplazado por `pymupdf>=1.24.0`
+  - `clasificador_openai.py`: `_extraer_texto_pdf()` usa `fitz` (wheels manylinux self-contained, sin dependencias nativas problemáticas como cryptography/cffi)
+  - `Dockerfile`: nota documentando que PyMuPDF no requiere libmupdf-dev
+- ✅ **TAREA 2 — `carga.py` reescrito con lógica correcta**
+  - `POST /api/carga/documentos` (multipart N archivos): clasifica cada uno, guarda en storage, devuelve `sesion_id` + lista clasificada. NO crea trámite todavía
+  - `POST /api/carga/procesar` ({sesion_id, gestoria?, matricula?...}): deduce tipo, evalúa checklist con el tipo correcto, determina estado, prepara avisos, crea el trámite
+  - `GET /api/carga/sesion/{id}`: estado de la sesión (docs subidos + trámite creado)
+- ✅ `deduccion_tipo.py` (NUEVO) — `deducir_tipo_tramite(tipos)` 
+  - Documento PRINCIPAL define el tipo: solicitud_matriculación→MATRICULACION, solicitud_baja→BAJA, CTI/contrato→TRANSFERENCIA
+  - Señales de herencia (modelo 650, declaración herederos) → subtipo herencia
+  - Respaldo por documentos secundarios; sin señal → revisión manual
+- ✅ **TAREA 3 — `carga.html` reescrito (UX en 2 pasos)**
+  - Paso 1: zona drag&drop grande sin formularios previos; cada doc muestra spinner→tipo+confianza en vivo; campos opcionales discretos (gestoría/matrícula) en `<details>`
+  - Paso 2: tipo de trámite deducido + estado con color + lista de documentos/requisitos + aviso si faltan docs + "Ver en Pantalla de Control"
+- ✅ **TAREA 4 — Trámites de carga conectados con la Pantalla de Control**
+  - `registro_tramites.py` (NUEVO) — registro en memoria compartido entre carga y control
+  - `_tramites_fuente()` combina trámites de carga manual + base (prueba/BD); `GET /api/tramites` y detalle los incluyen
+  - Forma del trámite idéntica a TRAMITES_PRUEBA (sin distinción de origen en el frontend)
+- ✅ **TAREA 5 — `/api/salud` con datos reales**
+  - `procesados_hoy` = trámites creados hoy (registro); `ultima_actividad` = timestamp del último
+- ✅ Tests
+  - `test_deduccion_tipo.py` (11): CTI→TRANSFERENCIA, solicitud→MATRICULACION, herencia, respaldo, sin señal
+  - `test_carga_v2.py` (10): subir→clasificar→procesar→deducir tipo→aparece en /api/tramites→cuenta en /api/salud
+  - `test_clasificador_openai.py` actualizado a fitz; `test_carga.py` (sesión 11) eliminado
+- ✅ Verificado end-to-end: 4 PDFs demo → tipo TRANSFERENCIA deducido → listo_dgt → visible en Pantalla Control
+- ✅ Suite acumulada: **234 pasando, 5 skipped, 0 fallos**
+
 ## ESTADO SESIÓN — 16/06/2026 (última)
 
 ### Próxima acción concreta
-- **Sesión 12**: SMTP real + tabla `requisitos_tramite` en BD (v2 árbol condicional)
+- **Sesión 13**: SMTP real + tabla `requisitos_tramite` en BD (v2 árbol condicional) + persistencia PostgreSQL del registro de carga manual
 
 ### Decisiones tomadas
 - `docs/` es la referencia canónica de proceso
 - El flujo real arranca desde la planilla (Tempus), no desde el email
 - Emails sin match en planilla nunca se bloquean
-- Sin `ANTHROPIC_API_KEY` → clasificador mock automático
+- Sin `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` → clasificador mock automático
 - CTI (Cambio Titularidad Individual) es el doc principal de TRANSFERENCIA, no permiso_circulacion
 - Escalado al admin es SIEMPRE via timers (T+60), nunca directo en procesar_email()
+- **El tipo de trámite NUNCA lo declara el administrativo — lo deduce Tyrion de los documentos**
+- **Carga manual = vía estándar para papel (60% de gestorías), no una excepción**
+- Extracción de texto PDF con PyMuPDF (fitz), no pdfplumber (robustez en Docker)
+- Registro de carga manual en memoria (sesión 12); se migrará a PostgreSQL en sesión 13

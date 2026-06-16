@@ -2,7 +2,7 @@
 Clasificador documental con OpenAI (gpt-4o-mini).
 
 Usa visión nativa para imágenes y PDFs convertidos.
-Para PDFs: extrae texto con pdfplumber primero (más barato y exacto).
+Para PDFs: extrae texto con PyMuPDF (fitz) primero (más barato y exacto).
 Si la extracción de texto falla o el PDF es imagen escaneada → fallback a visión.
 
 Principio de costos: gpt-4o-mini es equivalente a Haiku en precio,
@@ -63,18 +63,25 @@ Responde ÚNICAMENTE con un objeto JSON, sin texto adicional ni markdown:
 
 
 def _extraer_texto_pdf(ruta: str) -> str | None:
-    """Extrae texto de un PDF con pdfplumber. Devuelve None si falla o vacío."""
+    """Extrae texto de un PDF con PyMuPDF (fitz). Devuelve None si falla o vacío.
+
+    PyMuPDF es más robusto que pdfplumber en contenedores Linux: no arrastra
+    dependencias nativas problemáticas (cryptography/cffi) y es más rápido.
+    """
     try:
-        import pdfplumber
+        import fitz  # PyMuPDF
     except BaseException:
         return None
     try:
-        with pdfplumber.open(ruta) as pdf:
-            partes = [p.extract_text() or "" for p in pdf.pages[:4]]  # máx 4 págs
+        doc = fitz.open(ruta)
+        try:
+            partes = [doc[i].get_text() or "" for i in range(min(4, doc.page_count))]
+        finally:
+            doc.close()
         texto = "\n".join(partes).strip()
         return texto if len(texto) > 50 else None
     except Exception as exc:
-        logger.debug("pdfplumber falló en %s: %s", ruta, exc)
+        logger.debug("PyMuPDF falló en %s: %s", ruta, exc)
         return None
 
 

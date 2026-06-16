@@ -33,7 +33,6 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-  /* Header */
   header {
     background: var(--navy); color: #fff;
     height: 56px; display: flex; align-items: center;
@@ -48,99 +47,89 @@
   }
   .header-nav a:hover { background: rgba(255,255,255,.1); color: #fff; }
 
-  /* Layout */
-  .page { max-width: 860px; margin: 32px auto; padding: 0 24px 64px; }
-  .page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
-  .page-subtitle { color: var(--text-2); font-size: 14px; margin-bottom: 32px; }
+  .page { max-width: 760px; margin: 40px auto; padding: 0 24px 80px; }
+  .page-title { font-size: 24px; font-weight: 700; margin-bottom: 6px; letter-spacing: -.4px; }
+  .page-subtitle { color: var(--text-2); font-size: 14px; margin-bottom: 36px; }
 
-  /* Card */
-  .card {
-    background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
-    box-shadow: var(--shadow); padding: 24px; margin-bottom: 24px;
+  /* Zona de drop grande y prominente */
+  #zona-drop {
+    border: 2px dashed var(--border-2); border-radius: var(--radius-lg);
+    padding: 56px 32px; text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s; background: #fff;
   }
-  .card-title { font-size: 14px; font-weight: 600; color: var(--text-2); text-transform: uppercase;
-    letter-spacing: .05em; margin-bottom: 16px; }
+  #zona-drop.drag-over { border-color: var(--blue); background: var(--blue-light); }
+  #zona-drop .drop-icon { font-size: 40px; margin-bottom: 12px; }
+  #zona-drop .drop-title { font-size: 17px; font-weight: 600; color: var(--text); }
+  #zona-drop .drop-sub { font-size: 13px; color: var(--text-3); margin-top: 6px; }
+  #input-files { display: none; }
 
-  /* Form */
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  /* Lista de documentos */
+  #lista-docs { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .doc-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 16px; border-radius: var(--radius); border: 1px solid var(--border);
+    background: #fff; font-size: 13px; box-shadow: var(--shadow);
+  }
+  .doc-item.cargando { opacity: .7; }
+  .doc-icon { font-size: 16px; }
+  .doc-nombre { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  .doc-tipo { color: var(--text-2); flex: 1; }
+  .doc-badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+  .badge-alta  { background: var(--success-bg); color: var(--success); }
+  .badge-media { background: var(--warn-bg);    color: var(--warn);    }
+  .badge-baja  { background: var(--danger-bg);  color: var(--danger);  }
+  .spinner { width: 15px; height: 15px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Campos opcionales discretos */
+  .opcionales { margin-top: 24px; display: none; }
+  .opcionales.visible { display: block; }
+  .opcionales summary { font-size: 13px; color: var(--text-2); cursor: pointer; font-weight: 500; user-select: none; }
+  .opcionales-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
-  .form-group.full { grid-column: 1 / -1; }
   label { font-size: 12px; font-weight: 600; color: var(--text-2); }
-  input, select {
+  input {
     padding: 8px 12px; border: 1px solid var(--border-2); border-radius: var(--radius-sm);
     font-family: inherit; font-size: 14px; color: var(--text); background: #fff;
-    transition: border-color .15s, box-shadow .15s;
   }
-  input:focus, select:focus {
-    outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12);
-  }
-  input::placeholder { color: var(--text-3); }
+  input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
 
   /* Botones */
   .btn {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 18px; border-radius: var(--radius-sm); font-family: inherit;
-    font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: background .15s;
+    padding: 11px 22px; border-radius: var(--radius-sm); font-family: inherit;
+    font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: background .15s;
+    text-decoration: none;
   }
   .btn-primary { background: var(--blue); color: #fff; }
   .btn-primary:hover { background: #1d4ed8; }
   .btn-primary:disabled { background: var(--text-3); cursor: not-allowed; }
   .btn-ghost { background: transparent; color: var(--text-2); border: 1px solid var(--border-2); }
   .btn-ghost:hover { background: var(--bg); color: var(--text); }
+  .acciones { margin-top: 28px; display: flex; justify-content: flex-end; }
 
-  /* Zona de drop */
-  #zona-drop {
-    border: 2px dashed var(--border-2); border-radius: var(--radius);
-    padding: 32px; text-align: center; cursor: pointer; transition: border-color .2s, background .2s;
-    color: var(--text-2);
-  }
-  #zona-drop.drag-over { border-color: var(--blue); background: var(--blue-light); color: var(--blue); }
-  #zona-drop .drop-icon { font-size: 28px; margin-bottom: 8px; }
-  #zona-drop p { font-size: 14px; }
-  #zona-drop small { font-size: 12px; color: var(--text-3); }
-  #input-files { display: none; }
-
-  /* Lista de documentos cargados */
-  #lista-docs { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
-  .doc-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 12px 16px; border-radius: var(--radius); border: 1px solid var(--border);
-    background: #fff; font-size: 13px;
-  }
-  .doc-item.cargando { opacity: .6; }
-  .doc-nombre { font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .doc-tipo { color: var(--text-2); font-size: 12px; }
-  .doc-badge {
-    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap;
-  }
-  .badge-valido    { background: var(--success-bg); color: var(--success); }
-  .badge-evidencia { background: var(--warn-bg);    color: var(--warn);    }
-  .badge-rechazado { background: var(--danger-bg);  color: var(--danger);  }
-  .badge-pendiente { background: var(--bg);         color: var(--text-3); border: 1px solid var(--border); }
-  .badge-mock      { background: #F5F3FF;           color: #6D28D9; }
-  .doc-conf        { font-size: 11px; color: var(--text-3); }
-  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .6s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* Resultado final */
+  /* Resultado (Paso 2) */
   #resultado { display: none; }
-  .resultado-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-  .resultado-estado {
-    font-size: 15px; font-weight: 700; padding: 4px 14px; border-radius: 99px;
+  .resultado-card {
+    background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md); padding: 28px; margin-top: 32px;
   }
-  .estado-listo    { background: var(--success-bg); color: var(--success); }
-  .estado-pendiente{ background: var(--warn-bg);    color: var(--warn);    }
-  .resultado-lista { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-  .resultado-lista li { font-size: 13px; display: flex; align-items: center; gap: 8px; }
-  .resultado-lista .ok   { color: var(--success); }
-  .resultado-lista .falt { color: var(--warn);    }
-  .resultado-lista .rech { color: var(--danger);  }
-  .aviso-box { background: var(--warn-bg); border: 1px solid #FDE68A; border-radius: var(--radius); padding: 12px 16px; font-size: 13px; color: var(--warn); }
-
-  /* Footer actions */
-  .footer-actions { display: flex; gap: 12px; margin-top: 24px; }
-  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .resultado-tipo { font-size: 13px; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+  .resultado-titulo { font-size: 22px; font-weight: 700; margin: 4px 0 18px; letter-spacing: -.3px; }
+  .estado-pill { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; padding: 8px 18px; border-radius: 99px; }
+  .estado-listo     { background: var(--success-bg); color: var(--success); }
+  .estado-pendiente { background: var(--warn-bg);    color: var(--warn);    }
+  .estado-revision  { background: var(--bg);         color: var(--text-2); border: 1px solid var(--border); }
+  .resultado-seccion { margin-top: 22px; }
+  .resultado-seccion h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); margin-bottom: 10px; }
+  .req-lista { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  .req-lista li { font-size: 14px; display: flex; align-items: center; gap: 9px; }
+  .req-lista .ok   { color: var(--success); }
+  .req-lista .falt { color: var(--warn);    }
+  .req-lista .rech { color: var(--danger);  }
+  .aviso-box { background: var(--warn-bg); border: 1px solid #FDE68A; border-radius: var(--radius); padding: 13px 16px; font-size: 13px; color: var(--warn); margin-top: 20px; }
+  .footer-actions { display: flex; gap: 12px; margin-top: 28px; }
+  .deduccion-nota { font-size: 12px; color: var(--text-3); margin-top: 14px; font-style: italic; }
 </style>
 </head>
 <body>
@@ -156,262 +145,246 @@
 </header>
 
 <div class="page">
-  <h2 class="page-title">Cargar trámite manual</h2>
-  <p class="page-subtitle">Para documentación en papel digitalizada. Tyrion clasifica, coteja y prepara los avisos automáticamente.</p>
 
-  <!-- PASO 1: Datos del trámite -->
-  <div class="card">
-    <div class="card-title">1 · Datos del trámite</div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label for="tipo">Tipo de trámite *</label>
-        <select id="tipo">
-          <option value="">Seleccionar…</option>
-          <option value="transferencia">Transferencia</option>
-          <option value="matriculacion">Matriculación</option>
-          <option value="baja">Baja</option>
-          <option value="cambio_domicilio">Cambio de domicilio</option>
-          <option value="duplicado_circulacion">Duplicado circulación</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="subtipo">Subtipo</label>
-        <select id="subtipo">
-          <option value="">— opcional —</option>
-          <option value="compraventa_particular">Compraventa particular</option>
-          <option value="herencia">Herencia</option>
-          <option value="nuevo">Nuevo</option>
-          <option value="usado">Usado</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="matricula">Matrícula</label>
-        <input type="text" id="matricula" placeholder="1234 ABC">
-      </div>
-      <div class="form-group">
-        <label for="bastidor">Bastidor (VIN)</label>
-        <input type="text" id="bastidor" placeholder="VS6RFD000X…">
-      </div>
-      <div class="form-group">
-        <label for="gestoria">Gestoría *</label>
-        <input type="text" id="gestoria" placeholder="Gestoría López">
-      </div>
-      <div class="form-group">
-        <label for="gestoria-email">Email gestoría</label>
-        <input type="email" id="gestoria-email" placeholder="gestor@ejemplo.com">
-      </div>
-    </div>
-    <div style="margin-top:16px">
-      <button class="btn btn-primary" id="btn-crear" onclick="crearTramite()">Crear trámite</button>
-    </div>
-  </div>
+  <!-- PASO 1 -->
+  <div id="paso-carga">
+    <h2 class="page-title">Cargar trámite</h2>
+    <p class="page-subtitle">Soltá los documentos. Tyrion los lee, deduce el tipo de trámite y prepara todo lo demás.</p>
 
-  <!-- PASO 2: Subida de documentos -->
-  <div class="card" id="seccion-docs" style="display:none">
-    <div class="card-title">2 · Documentos</div>
     <div id="zona-drop"
       onclick="document.getElementById('input-files').click()"
       ondragover="event.preventDefault();this.classList.add('drag-over')"
       ondragleave="this.classList.remove('drag-over')"
       ondrop="onDrop(event)">
-      <div class="drop-icon">📎</div>
-      <p>Arrastra los documentos aquí o <strong>haz clic para seleccionar</strong></p>
-      <small>PDF, PNG, JPG — hasta 20 MB por archivo</small>
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">Arrastrá los documentos del trámite aquí</div>
+      <div class="drop-sub">PDFs o imágenes de papel escaneado · podés soltar varios a la vez</div>
     </div>
     <input type="file" id="input-files" multiple accept=".pdf,.png,.jpg,.jpeg"
       onchange="onFilesSeleccionados(this.files)">
+
     <div id="lista-docs"></div>
-    <hr class="divider">
-    <div style="display:flex;justify-content:flex-end">
-      <button class="btn btn-primary" id="btn-resultado" onclick="mostrarResultado()" style="display:none">
-        Ver resultado completo →
+
+    <details class="opcionales" id="opcionales">
+      <summary>Datos opcionales (ayudan a Tyrion si no puede leerlos del documento)</summary>
+      <div class="opcionales-grid">
+        <div class="form-group">
+          <label for="gestoria">Gestoría</label>
+          <input type="text" id="gestoria" placeholder="Gestoría López">
+        </div>
+        <div class="form-group">
+          <label for="gestoria-email">Email gestoría</label>
+          <input type="email" id="gestoria-email" placeholder="gestor@ejemplo.com">
+        </div>
+        <div class="form-group">
+          <label for="matricula">Matrícula</label>
+          <input type="text" id="matricula" placeholder="1234 ABC">
+        </div>
+        <div class="form-group">
+          <label for="bastidor">Bastidor (VIN)</label>
+          <input type="text" id="bastidor" placeholder="VS6RFD000X…">
+        </div>
+      </div>
+    </details>
+
+    <div class="acciones">
+      <button class="btn btn-primary" id="btn-procesar" onclick="procesar()" style="display:none">
+        Procesar trámite →
       </button>
     </div>
   </div>
 
-  <!-- PASO 3: Resultado final -->
-  <div class="card" id="resultado">
-    <div class="card-title">3 · Resultado del cotejo</div>
-    <div id="resultado-contenido"></div>
-    <div class="footer-actions">
-      <a href="/" class="btn btn-primary">Ver en Pantalla Control</a>
-      <button class="btn btn-ghost" onclick="nuevoTramite()">+ Nuevo trámite</button>
+  <!-- PASO 2 -->
+  <div id="resultado">
+    <div class="resultado-card">
+      <div class="resultado-tipo" id="r-tipo-label">—</div>
+      <div class="resultado-titulo" id="r-titulo">Resultado</div>
+      <div id="r-estado"></div>
+      <div class="deduccion-nota" id="r-deduccion"></div>
+
+      <div class="resultado-seccion">
+        <h4>Documentos del trámite</h4>
+        <ul class="req-lista" id="r-documentos"></ul>
+      </div>
+
+      <div class="resultado-seccion" id="r-seccion-req">
+        <h4>Estado del checklist</h4>
+        <ul class="req-lista" id="r-requisitos"></ul>
+      </div>
+
+      <div id="r-aviso"></div>
+
+      <div class="footer-actions">
+        <a href="/" class="btn btn-primary">Ver en Pantalla de Control →</a>
+        <button class="btn btn-ghost" onclick="nuevo()">+ Cargar otro trámite</button>
+      </div>
     </div>
   </div>
+
 </div>
 
 <script>
 'use strict';
 
-let tramiteId = null;
-let docsSubidos = 0;
+let sesionId = null;
+let docsCount = 0;
 
-// ── Paso 1: Crear trámite ──────────────────────────────────────────────────
-async function crearTramite() {
-  const tipo = document.getElementById('tipo').value;
-  const gestoria = document.getElementById('gestoria').value.trim();
-  if (!tipo) { alert('Selecciona el tipo de trámite.'); return; }
-  if (!gestoria) { alert('Escribe el nombre de la gestoría.'); return; }
-
-  const btn = document.getElementById('btn-crear');
-  btn.disabled = true; btn.textContent = 'Creando…';
-
-  const fd = new FormData();
-  fd.append('tipo', tipo);
-  fd.append('gestoria', gestoria);
-  const subtipo = document.getElementById('subtipo').value;
-  const matricula = document.getElementById('matricula').value.trim();
-  const bastidor = document.getElementById('bastidor').value.trim();
-  const email = document.getElementById('gestoria-email').value.trim();
-  if (subtipo) fd.append('subtipo', subtipo);
-  if (matricula) fd.append('matricula', matricula);
-  if (bastidor) fd.append('bastidor', bastidor);
-  if (email) fd.append('gestoria_email', email);
-
-  try {
-    const r = await fetch('/api/carga/tramite', { method: 'POST', body: fd });
-    if (!r.ok) {
-      const e = await r.json();
-      alert('Error: ' + (e.detail || r.status));
-      btn.disabled = false; btn.textContent = 'Crear trámite';
-      return;
-    }
-    const d = await r.json();
-    tramiteId = d.tramite_id;
-    btn.textContent = '✓ Trámite creado · ' + tramiteId;
-    document.getElementById('seccion-docs').style.display = 'block';
-    document.getElementById('seccion-docs').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  } catch (err) {
-    alert('Error de red: ' + err.message);
-    btn.disabled = false; btn.textContent = 'Crear trámite';
-  }
-}
-
-// ── Paso 2: Subir documentos ───────────────────────────────────────────────
+// ── PASO 1: subir documentos ────────────────────────────────────────────────
 function onDrop(e) {
   e.preventDefault();
   document.getElementById('zona-drop').classList.remove('drag-over');
-  subirArchivos(e.dataTransfer.files);
+  subir(e.dataTransfer.files);
 }
+function onFilesSeleccionados(files) { subir(files); }
 
-function onFilesSeleccionados(files) {
-  subirArchivos(files);
-}
+async function subir(files) {
+  if (!files || !files.length) return;
+  document.getElementById('opcionales').classList.add('visible');
 
-async function subirArchivos(files) {
-  if (!tramiteId) return;
-  for (const f of files) {
-    await subirUno(f);
-  }
-}
-
-function badgeValidez(v, esMock) {
-  if (esMock) return '<span class="doc-badge badge-mock">mock</span>';
-  const mapa = {
-    'VALIDO':               '<span class="doc-badge badge-valido">✓ Válido</span>',
-    'EVIDENCIA_COMPATIBLE': '<span class="doc-badge badge-evidencia">⚠ Evidencia</span>',
-    'RECHAZADO':            '<span class="doc-badge badge-rechazado">✗ Rechazado</span>',
-    'PENDIENTE':            '<span class="doc-badge badge-pendiente">— Pendiente</span>',
-  };
-  return mapa[v] || `<span class="doc-badge badge-pendiente">${v}</span>`;
-}
-
-async function subirUno(file) {
   const lista = document.getElementById('lista-docs');
-  const itemId = 'doc-' + Date.now() + '-' + Math.random().toString(36).slice(2);
-
-  lista.insertAdjacentHTML('beforeend', `
-    <div class="doc-item cargando" id="${itemId}">
-      <div class="spinner"></div>
-      <span class="doc-nombre">${escHtml(file.name)}</span>
-      <span class="doc-tipo">clasificando…</span>
-    </div>
-  `);
+  // Crear placeholders con spinner
+  const placeholders = [];
+  for (const f of files) {
+    const id = 'ph-' + Math.random().toString(36).slice(2);
+    placeholders.push({ id, file: f });
+    lista.insertAdjacentHTML('beforeend', `
+      <div class="doc-item cargando" id="${id}">
+        <div class="spinner"></div>
+        <span class="doc-nombre">${escHtml(f.name)}</span>
+        <span class="doc-tipo">leyendo y clasificando…</span>
+      </div>`);
+  }
 
   const fd = new FormData();
-  fd.append('archivo', file, file.name);
+  for (const f of files) fd.append('archivos', f, f.name);
+  if (sesionId) fd.append('sesion_id', sesionId);
 
   try {
-    const r = await fetch(`/api/carga/tramite/${tramiteId}/documento`, { method: 'POST', body: fd });
+    const r = await fetch('/api/carga/documentos', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || r.status);
+    sesionId = d.sesion_id;
 
-    const esMock = d.confianza === 'MEDIA' && d.justificacion?.includes('mock');
-    const el = document.getElementById(itemId);
-    el.classList.remove('cargando');
-    el.innerHTML = `
-      ${badgeValidez(d.validez, esMock)}
-      <span class="doc-nombre" title="${escHtml(file.name)}">${escHtml(file.name)}</span>
-      <span class="doc-tipo">${d.tipo_detectado.replace(/_/g,' ')}</span>
-      <span class="doc-conf">${(d.confianza_score * 100).toFixed(0)}% ${d.confianza}</span>
-    `;
-    docsSubidos++;
-    document.getElementById('btn-resultado').style.display = 'inline-flex';
+    // Reemplazar placeholders con resultados (en orden)
+    d.documentos.forEach((doc, i) => {
+      const ph = placeholders[i];
+      if (!ph) return;
+      const el = document.getElementById(ph.id);
+      el.classList.remove('cargando');
+      el.innerHTML = `
+        <span class="doc-icon">✓</span>
+        <span class="doc-nombre" title="${escHtml(doc.archivo)}">${escHtml(doc.archivo)}</span>
+        <span class="doc-tipo">${tipoLegible(doc.tipo_detectado)}</span>
+        <span class="doc-badge ${badgeClase(doc.confianza)}">${(doc.confianza_score*100).toFixed(0)}%</span>`;
+      docsCount++;
+    });
+    if (docsCount > 0) document.getElementById('btn-procesar').style.display = 'inline-flex';
   } catch (err) {
-    const el = document.getElementById(itemId);
-    el.classList.remove('cargando');
-    el.innerHTML = `<span class="doc-badge badge-rechazado">Error</span>
-      <span class="doc-nombre">${escHtml(file.name)}</span>
-      <span class="doc-tipo" style="color:var(--danger)">${escHtml(err.message)}</span>`;
+    placeholders.forEach(ph => {
+      const el = document.getElementById(ph.id);
+      if (el) { el.classList.remove('cargando');
+        el.innerHTML = `<span class="doc-icon">✗</span>
+          <span class="doc-nombre">${escHtml(ph.file.name)}</span>
+          <span class="doc-tipo" style="color:var(--danger)">${escHtml(err.message)}</span>`; }
+    });
   }
 }
 
-// ── Paso 3: Resultado ──────────────────────────────────────────────────────
-async function mostrarResultado() {
-  if (!tramiteId) return;
-  const r = await fetch(`/api/carga/tramite/${tramiteId}/resultado`);
-  const d = await r.json();
+// ── PASO 2: procesar ────────────────────────────────────────────────────────
+async function procesar() {
+  if (!sesionId) return;
+  const btn = document.getElementById('btn-procesar');
+  btn.disabled = true; btn.textContent = 'Procesando…';
 
-  const estadoLabel = d.listo_dgt
-    ? '<span class="resultado-estado estado-listo">✓ Listo para DGT</span>'
-    : d.debe_pedir_gestoria
-      ? '<span class="resultado-estado estado-pendiente">⚠ Pendiente gestoría</span>'
-      : '<span class="resultado-estado estado-pendiente">En revisión</span>';
+  const body = {
+    sesion_id: sesionId,
+    gestoria: val('gestoria'),
+    gestoria_email: val('gestoria-email'),
+    matricula: val('matricula'),
+    bastidor: val('bastidor'),
+  };
 
-  const validos = (d.requisitos_validos || [])
-    .map(r => `<li><span class="ok">✓</span> ${r.replace(/_/g,' ')}</li>`).join('');
-  const faltantes = (d.requisitos_faltantes || [])
-    .map(r => `<li><span class="falt">⚠</span> Falta: ${r.replace(/_/g,' ')}</li>`).join('');
-  const rechazados = (d.requisitos_rechazados || [])
-    .map(r => `<li><span class="rech">✗</span> Rechazado: ${r.replace(/_/g,' ')}</li>`).join('');
-
-  let avisoHtml = '';
-  if (d.debe_pedir_gestoria) {
-    avisoHtml = `<div class="aviso-box" style="margin-top:16px">
-      ⚠ Tyrion ha preparado un aviso automático para la gestoría con los documentos pendientes.
-      El aviso quedará en estado <strong>PREPARADO</strong> hasta que se configure el envío SMTP.
-    </div>`;
+  try {
+    const r = await fetch('/api/carga/procesar', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.status);
+    mostrarResultado(d);
+  } catch (err) {
+    alert('Error al procesar: ' + err.message);
+    btn.disabled = false; btn.textContent = 'Procesar trámite →';
   }
+}
 
-  document.getElementById('resultado-contenido').innerHTML = `
-    <div class="resultado-header">
-      ${estadoLabel}
-      <span style="font-size:13px;color:var(--text-2)">${d.tipo} · ${tramiteId}</span>
-    </div>
-    <ul class="resultado-lista">${validos}${faltantes}${rechazados}</ul>
-    ${avisoHtml}
-  `;
+function mostrarResultado(d) {
+  document.getElementById('paso-carga').style.display = 'none';
   document.getElementById('resultado').style.display = 'block';
-  document.getElementById('resultado').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  document.getElementById('r-tipo-label').textContent = d.tipo_label || 'Trámite';
+  document.getElementById('r-titulo').textContent = d.tipo_label || 'Trámite procesado';
+  document.getElementById('r-deduccion').textContent = '🔍 ' + d.deduccion_motivo;
+
+  // Estado pill
+  let pill = '';
+  if (d.listo_dgt) {
+    pill = '<span class="estado-pill estado-listo">✓ Listo para DGT</span>';
+  } else if (d.estado === 'pendiente_gestoria') {
+    pill = '<span class="estado-pill estado-pendiente">⚠ Faltan documentos</span>';
+  } else {
+    pill = '<span class="estado-pill estado-revision">En revisión manual</span>';
+  }
+  document.getElementById('r-estado').innerHTML = pill;
+
+  // Documentos
+  document.getElementById('r-documentos').innerHTML = d.documentos.map(doc =>
+    `<li><span class="ok">✓</span> <strong>${escHtml(doc.archivo)}</strong> — ${tipoLegible(doc.tipo_detectado)} (${(doc.confianza_score*100).toFixed(0)}%)</li>`
+  ).join('');
+
+  // Requisitos
+  const reqHtml = [
+    ...d.requisitos_validos.map(r => `<li><span class="ok">✓</span> ${tipoLegible(r)}</li>`),
+    ...d.requisitos_faltantes.map(r => `<li><span class="falt">⚠</span> Falta: ${tipoLegible(r)}</li>`),
+    ...d.requisitos_evidencia.map(r => `<li><span class="falt">⚠</span> Requiere aclaración: ${tipoLegible(r)}</li>`),
+    ...d.requisitos_rechazados.map(r => `<li><span class="rech">✗</span> Rechazado: ${tipoLegible(r)}</li>`),
+  ].join('');
+  if (reqHtml) {
+    document.getElementById('r-requisitos').innerHTML = reqHtml;
+  } else {
+    document.getElementById('r-seccion-req').style.display = 'none';
+  }
+
+  // Aviso
+  if (d.aviso_preparado) {
+    document.getElementById('r-aviso').innerHTML =
+      `<div class="aviso-box">⚠ Tyrion preparó un aviso para la gestoría con los documentos pendientes. Queda en estado <strong>PREPARADO</strong> hasta que se configure el envío.</div>`;
+  }
 }
 
-function nuevoTramite() {
-  tramiteId = null; docsSubidos = 0;
-  document.getElementById('tipo').value = '';
-  document.getElementById('subtipo').value = '';
-  document.getElementById('matricula').value = '';
-  document.getElementById('bastidor').value = '';
-  document.getElementById('gestoria').value = '';
-  document.getElementById('gestoria-email').value = '';
-  document.getElementById('btn-crear').disabled = false;
-  document.getElementById('btn-crear').textContent = 'Crear trámite';
-  document.getElementById('seccion-docs').style.display = 'none';
+function nuevo() {
+  sesionId = null; docsCount = 0;
   document.getElementById('lista-docs').innerHTML = '';
-  document.getElementById('btn-resultado').style.display = 'none';
+  document.getElementById('btn-procesar').style.display = 'none';
+  document.getElementById('btn-procesar').disabled = false;
+  document.getElementById('btn-procesar').textContent = 'Procesar trámite →';
+  ['gestoria','gestoria-email','matricula','bastidor'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('opcionales').classList.remove('visible');
   document.getElementById('resultado').style.display = 'none';
+  document.getElementById('paso-carga').style.display = 'block';
+  document.getElementById('r-seccion-req').style.display = 'block';
+  document.getElementById('r-aviso').innerHTML = '';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// ── Utilidades ──────────────────────────────────────────────────────────────
+function val(id) { return document.getElementById(id).value.trim() || null; }
+function badgeClase(nivel) {
+  return nivel === 'ALTA' ? 'badge-alta' : nivel === 'MEDIA' ? 'badge-media' : 'badge-baja';
+}
+function tipoLegible(t) {
+  return String(t).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

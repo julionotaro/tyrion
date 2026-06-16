@@ -24,6 +24,7 @@ from app.api.datos_prueba import (
 )
 from app.api.deps import get_usar_datos_prueba
 from app.repositories.repositorio_postgres import RepositorioPostgres
+from app.services import registro_tramites
 from app.services.ingesta_planilla import (
     parse_relacion_transmisiones,
     parse_relacion_matriculas,
@@ -90,11 +91,19 @@ def _tramites_fuente(
     gestoria: str | None = None,
     tipo: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Fuente combinada de trámites: base (prueba o BD) + carga manual.
+
+    Los trámites creados vía carga manual (registro_tramites) SIEMPRE se incluyen,
+    de modo que aparezcan en la Pantalla de Control junto a los demás.
+    """
+    manuales = registro_tramites.listar_tramites()
     if usar_prueba:
-        return TRAMITES_PRUEBA
+        # Más recientes (carga manual) primero
+        return manuales + list(TRAMITES_PRUEBA)
     try:
         repo = RepositorioPostgres()
-        return repo.listar_tramites(estado=estado, gestoria=gestoria, tipo=tipo)
+        base = repo.listar_tramites(estado=estado, gestoria=gestoria, tipo=tipo)
+        return manuales + base
     except Exception as exc:
         raise HTTPException(503, f"Error al consultar la base de datos: {exc}") from exc
 
@@ -145,6 +154,26 @@ def detalle_tramite(
     usar_prueba: bool = Depends(get_usar_datos_prueba),
 ) -> TramiteDetalle:
     """Detalle completo de un trámite: documentos, historial, avisos."""
+    # Trámites de carga manual viven en el registro en memoria (cualquier modo)
+    manual = registro_tramites.obtener_tramite(tramite_id)
+    if manual is not None:
+        return TramiteDetalle(
+            id=manual["id"],
+            tipo=manual["tipo"],
+            matricula=manual.get("matricula"),
+            bastidor=manual.get("bastidor"),
+            gestoria=manual["gestoria"],
+            gestoria_email=manual.get("gestoria_email", ""),
+            estado=manual["estado"],
+            estado_label=ETIQUETAS_ESTADO.get(manual["estado"], manual["estado"]),
+            fecha_entrada=str(manual.get("fecha_entrada", "")),
+            alerta=manual.get("alerta", False),
+            num_comprobante_dgt=manual.get("num_comprobante_dgt"),
+            documentos=manual.get("documentos", []),
+            historial=manual.get("historial", []),
+            avisos_pendientes=manual.get("avisos_pendientes", []),
+        )
+
     if usar_prueba:
         tramites = _tramites_fuente(usar_prueba)
         tramite = next((t for t in tramites if t["id"] == tramite_id), None)
@@ -403,10 +432,13 @@ def salud_sistema() -> SaludResponse:
         clasificador = "mock"
         modelo = "mock"
 
+    procesados_hoy = registro_tramites.contar_procesados_hoy()
+    ultima = registro_tramites.ultima_actividad()
+
     return SaludResponse(
         activo=True,
         clasificador=clasificador,
         modelo=modelo,
-        procesados_hoy=0,   # sin BD real; con BD: COUNT de docs procesados hoy
-        ultima_actividad=datetime.now(timezone.utc).isoformat(),
+        procesados_hoy=procesados_hoy,
+        ultima_actividad=ultima or datetime.now(timezone.utc).isoformat(),
     )
