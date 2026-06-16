@@ -13,6 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+from app.core.config import get_settings
 
 from app.api.datos_prueba import (
     ETIQUETAS_ESTADO,
@@ -374,3 +375,38 @@ def planilla_sin_match(
         return SinMatchResponse(emails_sin_match=sin_match, total=len(sin_match))
     except Exception as exc:
         raise HTTPException(503, f"Error consultando sin_match: {exc}") from exc
+
+
+# ── Salud del sistema ─────────────────────────────────────────────────────────
+
+class SaludResponse(BaseModel):
+    activo: bool
+    clasificador: str   # "anthropic" | "openai" | "mock"
+    modelo: str
+    procesados_hoy: int
+    ultima_actividad: str | None
+
+
+@router.get("/salud", response_model=SaludResponse)
+def salud_sistema() -> SaludResponse:
+    """Estado del sistema: clasificador activo, modelo en uso, actividad reciente."""
+    from datetime import datetime, timezone
+    s = get_settings()
+
+    if s.openai_api_key:
+        clasificador = "openai"
+        modelo = s.clasificador_openai_model
+    elif s.anthropic_api_key:
+        clasificador = "anthropic"
+        modelo = s.clasificador_model
+    else:
+        clasificador = "mock"
+        modelo = "mock"
+
+    return SaludResponse(
+        activo=True,
+        clasificador=clasificador,
+        modelo=modelo,
+        procesados_hoy=0,   # sin BD real; con BD: COUNT de docs procesados hoy
+        ultima_actividad=datetime.now(timezone.utc).isoformat(),
+    )

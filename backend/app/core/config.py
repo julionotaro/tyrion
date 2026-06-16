@@ -9,11 +9,14 @@ class Settings(BaseSettings):
     # Base de datos
     database_url: str = "postgresql+asyncpg://tyrion:tyrion@localhost:5432/tyrion"
 
-    # Claude API (clasificación documental)
+    # Anthropic API (clasificación documental con Claude)
     anthropic_api_key: str = ""
-    # Modelo económico para clasificación masiva; el premium solo en conflictos/escalados
     clasificador_model: str = "claude-haiku-4-5-20251001"
     razonador_model: str = "claude-opus-4-8"
+
+    # OpenAI API (clasificador alternativo con visión gpt-4o-mini)
+    openai_api_key: str = ""
+    clasificador_openai_model: str = "gpt-4o-mini"
 
     # Umbrales de confianza
     confianza_alta: float = 0.85

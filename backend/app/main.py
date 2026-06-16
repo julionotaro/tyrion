@@ -6,11 +6,13 @@ import os
 
 from app.api.control import router as control_router
 from app.api.documentos import router as documentos_router
+from app.api.carga import router as carga_router
 
 app = FastAPI(title="Tyrion", description="Capa de inteligencia documental — Colegio de Gestores")
 
 app.include_router(control_router)
 app.include_router(documentos_router)
+app.include_router(carga_router)
 
 # Servir la Pantalla Control como frontend estático
 _static_dir = os.path.join(os.path.dirname(__file__), "..", "static")

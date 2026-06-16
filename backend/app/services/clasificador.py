@@ -130,29 +130,47 @@ class ClasificadorDocumental:
     Si ANTHROPIC_API_KEY no está configurada, usa ClasificadorMock automáticamente.
     """
 
-    def __init__(self, client: AsyncAnthropic | None = None):
+    def __init__(self, client=None):
         settings = get_settings()
+        self._mock_clf = ClasificadorMock()
+
         if client is not None:
+            # Cliente inyectado (tests)
             self._client = client
             self._mock = False
-        elif not settings.anthropic_api_key:
+            self._openai = False
+        elif settings.openai_api_key:
+            # OpenAI tiene prioridad cuando ambas keys están configuradas
+            logger.info("Clasificador: modo OpenAI (%s)", settings.clasificador_openai_model)
+            from app.services.clasificador_openai import ClasificadorOpenAI
+            self._openai_clf = ClasificadorOpenAI()
+            self._client = None
+            self._mock = False
+            self._openai = True
+        elif settings.anthropic_api_key:
+            logger.info("Clasificador: modo Anthropic (%s)", settings.clasificador_model)
+            self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            self._mock = False
+            self._openai = False
+        else:
             logger.info("Clasificador: modo mock (sin API key)")
             self._client = None
             self._mock = True
-        else:
-            self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-            self._mock = False
+            self._openai = False
         self._model = settings.clasificador_model
-        self._mock_clf = ClasificadorMock()
 
     async def clasificar(
         self,
         ruta_archivo: str,
         tipo_declarado: str | None = None,
     ) -> ResultadoClasificacion:
-        """Clasifica un documento. Delega al mock si no hay API key configurada."""
+        """Clasifica un documento. Delega al mock o a OpenAI según configuración."""
         if self._mock:
             return await self._mock_clf.clasificar(
+                ruta_archivo=ruta_archivo, tipo_declarado=tipo_declarado
+            )
+        if self._openai:
+            return await self._openai_clf.clasificar(
                 ruta_archivo=ruta_archivo, tipo_declarado=tipo_declarado
             )
 

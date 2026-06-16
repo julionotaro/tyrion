@@ -562,7 +562,11 @@
   <!-- Barra de estados (sustituye los cards flotantes) -->
   <div id="cards"></div>
 
-  <div id="badge-alertas" onclick="filtroAlertas()" style="cursor:pointer">⚠ <span id="num-alertas">0</span> alertas</div>
+  <div style="display:flex;align-items:center;gap:12px;margin-left:auto;padding-right:16px">
+    <div id="badge-alertas" onclick="filtroAlertas()" style="cursor:pointer">⚠ <span id="num-alertas">0</span> alertas</div>
+    <div id="indicador-salud" style="font-size:11px;color:rgba(255,255,255,0.5);white-space:nowrap">● cargando…</div>
+    <a href="/static/carga.html" style="background:var(--blue);color:#fff;border:none;padding:6px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;white-space:nowrap">+ Cargar trámite</a>
+  </div>
 </header>
 
 <div id="main">
@@ -907,9 +911,28 @@ async function escalar() {
   }
 }
 
+// ── Indicador de salud ──
+async function cargarSalud() {
+  try {
+    const r = await fetch('/api/salud');
+    if (!r.ok) { actualizarSaludUI(null); return; }
+    const d = await r.json();
+    actualizarSaludUI(d);
+  } catch { actualizarSaludUI(null); }
+}
+function actualizarSaludUI(d) {
+  const el = document.getElementById('indicador-salud');
+  if (!el) return;
+  if (!d) { el.textContent = '● error'; el.style.color = 'var(--danger)'; return; }
+  const color = d.clasificador === 'mock' ? 'rgba(255,255,255,0.4)' : 'var(--success)';
+  const nombre = d.clasificador === 'mock' ? 'mock' : `${d.clasificador} · ${d.modelo}`;
+  el.style.color = color;
+  el.textContent = `● Tyrion activo · ${nombre} · ${d.procesados_hoy} procesados`;
+}
+
 // ── Polling ──
 async function recargar() {
-  await Promise.all([cargarStats(), cargarTramites()]);
+  await Promise.all([cargarStats(), cargarTramites(), cargarSalud()]);
   document.getElementById('ultima-actualizacion').textContent =
     'última act.: ' + new Date().toLocaleTimeString('es-ES');
 }

@@ -242,10 +242,50 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
   - Todo el JS original preservado (mismos IDs, event listeners, funciones)
 - ✅ Suite acumulada: **200 pasando, 5 skipped, 0 fallos** (sin cambios en tests)
 
+### Sesión 11 — Carga manual + OpenAI productivo + indicador de salud (16/06/2026)
+
+**Contexto real**: 60% de gestorías entrega documentación en papel; la carga manual es la vía estándar, no una excepción.
+
+- ✅ `backend/app/api/carga.py` (NUEVO) — API de carga manual de documentos
+  - `POST /api/carga/tramite` → crea trámite manual (tipo, subtipo, matrícula, bastidor, gestoría)
+  - `POST /api/carga/tramite/{id}/documento` → sube archivo, dispara clasificación + cotejo, devuelve resultado por documento
+  - `GET  /api/carga/tramite/{id}/resultado` → estado final del checklist completo
+  - Almacenamiento en memoria de sesión (demo); en producción usará RepositorioPostgres
+- ✅ `backend/static/carga.html` (NUEVO) — pantalla de carga manual
+  - Formulario en 3 pasos: datos del trámite → subida de documentos → resultado del cotejo
+  - Drag&drop o selector multi-archivo; cada documento muestra en vivo: tipo detectado, validez (✓/⚠/✗), confianza
+  - Resultado con estado final: Listo para DGT / Pendiente gestoría + lista de faltantes
+  - Diseño coherente con index.html (misma paleta Inter + CSS custom properties)
+- ✅ `backend/static/index.html` (modificado) — botón "+ Cargar trámite" en header + indicador de salud
+  - Indicador discreto: "● Tyrion activo · openai · gpt-4o-mini · N procesados"
+  - Punto verde si Anthropic/OpenAI, gris si mock; se actualiza con el polling cada 30s
+- ✅ `backend/app/services/clasificador_openai.py` (NUEVO) — clasificador con OpenAI gpt-4o-mini
+  - Para PDFs: extrae texto con pdfplumber primero (ruta barata); fallback a visión si falla
+  - Para imágenes: siempre visión (base64 en la petición)
+  - Mismo contrato que ClasificadorDocumental (devuelve `ResultadoClasificacion`)
+  - Log: "Clasificador OpenAI (texto|visión) procesó X → tipo Y (confianza Z)"
+- ✅ `backend/app/services/clasificador.py` (modificado) — auto-selección en `ClasificadorDocumental`
+  - Orden de prioridad: OpenAI (si `OPENAI_API_KEY`) → Anthropic (si `ANTHROPIC_API_KEY`) → mock
+  - Sin cambios en la interfaz `clasificar()` — transparente para el pipeline
+- ✅ `backend/app/api/control.py` (ampliado) — `GET /api/salud`
+  - Devuelve: `{ activo, clasificador ("openai"|"anthropic"|"mock"), modelo, procesados_hoy, ultima_actividad }`
+- ✅ `backend/app/core/config.py` (ampliado) — `openai_api_key` y `clasificador_openai_model`
+- ✅ `backend/requirements.txt` — añadido `openai>=1.0.0` y `pdfplumber>=0.11.0`
+- ✅ `backend/.env.example` — documentadas `OPENAI_API_KEY` y `CLASIFICADOR_OPENAI_MODEL`
+- ✅ `tools/generar_docs_demo.py` (NUEVO) — genera 8 PDFs mínimos en /tmp/tyrion_demo/
+  - Trámite 1: transferencia completa (CTI + 620 + DNI + contrato) → listo_dgt
+  - Trámite 2: transferencia incompleta (CTI + DNI, falta 620 y contrato) → aviso gestoría
+  - Trámite 4: matriculación (solicitud + ficha técnica)
+- ✅ 21 tests nuevos
+  - `test_carga.py` (7): crear trámite, subir documento, resultado completo/incompleto, 404s
+  - `test_clasificador_openai.py` (8): texto PDF, fallback visión, imagen, discrepancia, JSON inválido
+  - `test_salud.py` (6): estructura, campos, mock sin keys, openai con key
+- ✅ Suite acumulada: **221 pasando, 5 skipped, 0 fallos**
+
 ## ESTADO SESIÓN — 16/06/2026 (última)
 
 ### Próxima acción concreta
-- **Sesión 10b**: SMTP real + tabla `requisitos_tramite` en BD (v2 árbol condicional)
+- **Sesión 12**: SMTP real + tabla `requisitos_tramite` en BD (v2 árbol condicional)
 
 ### Decisiones tomadas
 - `docs/` es la referencia canónica de proceso
