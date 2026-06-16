@@ -142,14 +142,36 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - Campo `no_telematico` en tabla `tramites` + migración SQL
 - Integración `resolver_checklist()` con tabla `requisitos_tramite` en BD
 
-## ESTADO SESIÓN — 15/06/2026 (última)
+### Sesión 7 — Ingesta de planilla + cruce email↔planilla + BD (16/06/2026)
+- ✅ Migración SQL 003 (`backend/migrations/003_planilla_no_telematico.sql`)
+  - Tablas `planilla_dia`, `tramite_planificado`, `cruce_email_planilla`
+  - Columna `no_telematico` en `tramites` + índices bastidor/matrícula
+- ✅ `ingesta_planilla.py` (NUEVO) — parsers puros de CSV Tempus
+  - `parse_relacion_transmisiones()` y `parse_relacion_matriculas()`
+  - Normalización bastidor (uppercase, sin espacios/guiones) y matrícula
+  - `PlanillaDia.buscar_por_bastidor()` / `buscar_por_matricula()`
+- ✅ `cruce_planilla.py` (NUEVO) — cruce email↔planilla
+  - Bastidor exacto → ALTA; últimos 4 dígitos → MEDIA; matrícula → MEDIA; NIF → BAJA
+  - Emails sin match NO se bloquean, continúan flujo normal
+  - Detección de ambigüedad (múltiples candidatos)
+- ✅ `pipeline.py` ampliado
+  - Cruce email↔planilla al inicio del procesamiento
+  - `no_telematico=True` → pendiente_jefatura (early return antes de generar avisos)
+  - `ResultadoPipeline.cruce_planilla` + `ResultadoPipeline.no_telematico`
+- ✅ `repositorio_postgres.py` ampliado — guardar/buscar planilla y trámites planificados
+- ✅ `control.py` — 3 endpoints nuevos + stats ampliado
+  - `POST /api/planilla`, `GET /api/planilla/hoy`, `GET /api/planilla/sin-match`
+  - `StatsResponse` con `total_planificados`, `sin_match`, `pendiente_jefatura`, `sin_documentacion`
+- ✅ `datos_prueba.py` — `PLANILLA_DIA_PRUEBA` (9 trámites planificados + 1 email sin match)
+- ✅ 46 tests nuevos (test_ingesta_planilla, test_cruce_planilla, test_pipeline_planilla)
+- ✅ Suite acumulada: **169 pasando, 5 skipped, 0 fallos**
 
-### Completado en esta sesión (docs)
-- `docs/flujo-operativo-estandarizado.md` commiteado — 5 fases del proceso real, mapa a módulos Tyrion, tabla diferencias con modelo previo, pendientes sesión 2
-- `docs/instructivo-operativo.md` commiteado — checklists por familia, cruces requeridos, tabla identificación de personas, descripción automáticas de Tyrion, preguntas sesión 2
+## ESTADO SESIÓN — 16/06/2026 (última)
 
 ### Próxima acción concreta
-- **Sesión 7**: Ingesta de planilla + cruce email↔planilla + campo `no_telematico` en BD
+- **Sesión 8**: Upload de PDFs reales (split-view) + integración Tempus API (ingesta planilla automática)
 
 ### Decisiones tomadas
 - `docs/` es la referencia canónica de proceso (junto con `matriz-documental-tramites.md` ya existente)
+- El flujo real arranca desde la planilla (Tempus), no desde el email
+- Emails sin match en planilla nunca se bloquean (planilla puede llegar después)
