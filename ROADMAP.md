@@ -166,16 +166,6 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ 46 tests nuevos (test_ingesta_planilla, test_cruce_planilla, test_pipeline_planilla)
 - ✅ Suite acumulada: **169 pasando, 5 skipped, 0 fallos**
 
-## ESTADO SESIÓN — 16/06/2026 (última)
-
-### Próxima acción concreta
-- **Sesión 8**: Upload de PDFs reales (split-view) + integración Tempus API (ingesta planilla automática)
-
-### Decisiones tomadas
-- `docs/` es la referencia canónica de proceso (junto con `matriz-documental-tramites.md` ya existente)
-- El flujo real arranca desde la planilla (Tempus), no desde el email
-- Emails sin match en planilla nunca se bloquean (planilla puede llegar después)
-
 ### Sesión 8 — PDFs reales + watcher Tempus + make demo (16/06/2026)
 - ✅ `storage.py` (NUEVO) — almacenamiento local de archivos
   - `guardar_archivo(doc_id, bytes, nombre, mime)` → guarda en uploads_dir/{doc_id}/
@@ -201,3 +191,23 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ `backend/.env.example` — variables `WATCH_DIR` y `UPLOADS_DIR`
 - ✅ 9 tests nuevos (test_storage × 4, test_watcher_planilla × 4, test_demo × 1)
 - ✅ Suite acumulada: **178 pasando, 5 skipped, 0 fallos**
+
+### Sesión 8b — Modo demo sin API key (16/06/2026)
+- ✅ `clasificador.py` — `ClasificadorMock` integrado en `ClasificadorDocumental`
+  - Sin `ANTHROPIC_API_KEY`: usa mock automáticamente (log: "Clasificador: modo mock")
+  - Mock infiere tipo desde `tipo_declarado`; sin key nunca lanza error
+- ✅ `backend/.env.example` — `ANTHROPIC_API_KEY=` vacío con comentario explicativo
+- ✅ `README.md` — demo sin cuenta Anthropic documentada
+- ✅ 3 tests nuevos (test_clasificador_usa_mock_sin_api_key, test_mock_*, ×3)
+- ✅ Suite acumulada: **181 pasando, 5 skipped, 0 fallos**
+
+## ESTADO SESIÓN — 16/06/2026 (última)
+
+### Próxima acción concreta
+- **Sesión 9**: SMTP real + integración Tempus API directa (pendiente confirmación cliente)
+
+### Decisiones tomadas
+- `docs/` es la referencia canónica de proceso
+- El flujo real arranca desde la planilla (Tempus), no desde el email
+- Emails sin match en planilla nunca se bloquean
+- Sin `ANTHROPIC_API_KEY` → clasificador mock automático (demo funciona sin credenciales)
