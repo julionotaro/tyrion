@@ -138,7 +138,7 @@ CONFUSIONES_FRECUENTES = {
 
 CHECKLIST_POR_TRAMITE: dict[TipoTramite, list[str]] = {
     TipoTramite.TRANSFERENCIA: [
-        "permiso_circulacion",
+        "cti",
         "modelo_620",
         "dni",
         "contrato_compraventa",

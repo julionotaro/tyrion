@@ -78,8 +78,12 @@ class EstadoChecklist:
 
     @property
     def debe_pedir_gestoria(self) -> bool:
-        """Hay documentos faltantes o con evidencia insuficiente: pedir a gestoría."""
-        return bool(self.requisitos_faltantes or self.requisitos_evidencia)
+        """Hay documentos faltantes, insuficientes o incorrectos: pedir a gestoría primero.
+        Los rechazados también van a gestoría (T+0): se les pide el documento correcto.
+        El escalado al admin solo ocurre si la gestoría no responde (T+60 via timers)."""
+        return bool(
+            self.requisitos_faltantes or self.requisitos_evidencia or self.requisitos_rechazados
+        )
 
     @property
     def debe_escalar_admin(self) -> bool:
@@ -138,7 +142,8 @@ def resolver_checklist(
 
     # ── Checklist base por familia ─────────────────────────────────────────────
     if familia == FamiliaTramite.TRANSFERENCIA:
-        base = ["permiso_circulacion", "modelo_620", "dni", "contrato_compraventa"]
+        # CTI (Certificado de Transferencia Individual) es el doc principal (no permiso_circulacion)
+        base = ["cti", "modelo_620", "dni", "contrato_compraventa"]
 
         # §5.1.E — Herencia: documentación adicional
         if subtipo == SubtipoTramite.HERENCIA:

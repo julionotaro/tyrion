@@ -113,7 +113,7 @@
 <header>
   <h1>Tyrion</h1>
   <span>Pantalla Control — Colegio de Gestores</span>
-  <div id="badge-alertas">⚠ <span id="num-alertas">0</span> alertas</div>
+  <div id="badge-alertas" onclick="filtroAlertas()" style="cursor:pointer">⚠ <span id="num-alertas">0</span> alertas</div>
 </header>
 
 <div id="cards"></div>
@@ -228,12 +228,13 @@ async function cargarTramites() {
 }
 function renderTabla() {
   const texto = document.getElementById('filtro-texto').value.toLowerCase();
+  let base = filtroAlertaActivo ? todosLosTramites.filter(t => t.alerta) : todosLosTramites;
   const filtrados = texto
-    ? todosLosTramites.filter(t =>
+    ? base.filter(t =>
         (t.matricula||'').toLowerCase().includes(texto) ||
         (t.bastidor||'').toLowerCase().includes(texto) ||
         t.gestoria.toLowerCase().includes(texto))
-    : todosLosTramites;
+    : base;
 
   const sinRes = document.getElementById('sin-resultados');
   const tbody  = document.getElementById('tbody');
@@ -261,10 +262,20 @@ function renderTabla() {
 // ── Filtros ──
 function filtrarPorCard(estado) {
   estadoActivo = estadoActivo === estado ? null : estado;
+  filtroAlertaActivo = false;
+  cargarStats(); cargarTramites();
+}
+let filtroAlertaActivo = false;
+function filtroAlertas() {
+  filtroAlertaActivo = !filtroAlertaActivo;
+  estadoActivo = null;
+  document.getElementById('badge-alertas').classList.toggle('activo', filtroAlertaActivo);
   cargarStats(); cargarTramites();
 }
 function limpiarFiltros() {
   estadoActivo = null;
+  filtroAlertaActivo = false;
+  document.getElementById('badge-alertas').classList.remove('activo');
   document.getElementById('filtro-texto').value = '';
   document.getElementById('filtro-tipo').value = '';
   cargarStats(); cargarTramites();

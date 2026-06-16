@@ -84,11 +84,12 @@ def test_modelo_620_no_sustituye_permiso_circulacion(motor):
     assert not res.requiere_escalado_admin
 
 
-def test_cti_no_sustituye_permiso_circulacion(motor):
+def test_cti_valido_en_transferencia(motor):
+    """CTI es el documento PRINCIPAL en una transferencia → VALIDO."""
     clf = _clasificacion(TipoDocumento.CTI, 0.88)
-    res = motor.cotejar_documento(clf, TipoTramite.TRANSFERENCIA, "permiso_circulacion")
+    res = motor.cotejar_documento(clf, TipoTramite.TRANSFERENCIA, "cti")
 
-    assert res.validez == ValidezVinculo.EVIDENCIA_COMPATIBLE
+    assert res.validez == ValidezVinculo.VALIDO
 
 
 def test_ficha_tecnica_compatible_con_cti(motor):
@@ -123,8 +124,9 @@ def test_rechazado_escala_al_admin_no_gestoria(motor):
 # ---------- evaluar_checklist: estado completo del trámite ----------
 
 def test_checklist_completo_transferencia(motor):
+    # CTI es el documento principal de transferencia (no permiso_circulacion)
     docs = {
-        "permiso_circulacion": _clasificacion(TipoDocumento.PERMISO_CIRCULACION, 0.95),
+        "cti": _clasificacion(TipoDocumento.CTI, 0.95),
         "modelo_620": _clasificacion(TipoDocumento.MODELO_620, 0.88),
         "dni": _clasificacion(TipoDocumento.DNI, 0.92),
         "contrato_compraventa": _clasificacion(TipoDocumento.CONTRATO_COMPRAVENTA, 0.85),
@@ -139,8 +141,9 @@ def test_checklist_completo_transferencia(motor):
 
 
 def test_checklist_con_documento_faltante(motor):
+    # CTI presente, modelo_620 faltante
     docs = {
-        "permiso_circulacion": _clasificacion(TipoDocumento.PERMISO_CIRCULACION, 0.95),
+        "cti": _clasificacion(TipoDocumento.CTI, 0.95),
         # modelo_620 falta
         "dni": _clasificacion(TipoDocumento.DNI, 0.92),
         "contrato_compraventa": _clasificacion(TipoDocumento.CONTRATO_COMPRAVENTA, 0.85),
@@ -155,9 +158,9 @@ def test_checklist_con_documento_faltante(motor):
 
 
 def test_checklist_con_evidencia_compatible(motor):
-    """Se envió un CTI en lugar del permiso: evidencia compatible, pedir a gestoría."""
+    """Se envió ficha_tecnica en lugar de CTI: evidencia compatible, pedir a gestoría."""
     docs = {
-        "permiso_circulacion": _clasificacion(TipoDocumento.CTI, 0.90),
+        "cti": _clasificacion(TipoDocumento.FICHA_TECNICA, 0.90),  # ficha ≈ cti, pero no es válido
         "modelo_620": _clasificacion(TipoDocumento.MODELO_620, 0.88),
         "dni": _clasificacion(TipoDocumento.DNI, 0.92),
         "contrato_compraventa": _clasificacion(TipoDocumento.CONTRATO_COMPRAVENTA, 0.85),
@@ -165,13 +168,15 @@ def test_checklist_con_evidencia_compatible(motor):
     estado = motor.evaluar_checklist(TipoTramite.TRANSFERENCIA, docs)
 
     assert not estado.completo
-    assert "permiso_circulacion" in estado.requisitos_evidencia
+    assert "cti" in estado.requisitos_evidencia
     assert estado.debe_pedir_gestoria
     assert not estado.debe_escalar_admin   # gestoría primero
 
 
 def test_checklist_con_documento_rechazado_escala_admin(motor):
-    """Documento rechazado (sin relación) → escalar al admin como último recurso."""
+    """Documento rechazado → debe_escalar_admin=True Y debe_pedir_gestoria=True.
+    El motor detecta que eventualmente hay que escalar, pero el pipeline primero
+    pide aviso_1 a gestoría (T+0) y escala al admin solo tras T+60 via timers."""
     docs = {
         "permiso_circulacion": _clasificacion(TipoDocumento.HOJA_CAJA, 0.90),
         "dni": _clasificacion(TipoDocumento.DNI, 0.92),
@@ -181,6 +186,8 @@ def test_checklist_con_documento_rechazado_escala_admin(motor):
     assert not estado.completo
     assert "permiso_circulacion" in estado.requisitos_rechazados
     assert estado.debe_escalar_admin
+    # BUG 1 fix: rechazados también van a gestoría primero (aviso_1 T+0)
+    assert estado.debe_pedir_gestoria
 
 
 # ---------- checklist con requisitos personalizados (sin BD) ----------
@@ -219,8 +226,9 @@ def test_requisito_no_obligatorio_no_bloquea(motor):
 # ---------- preparar_mensaje_gestoria ----------
 
 def test_mensaje_gestoria_incluye_faltantes(motor):
+    # Solo CTI provisto; faltan modelo_620, dni, contrato_compraventa
     docs = {
-        "permiso_circulacion": _clasificacion(TipoDocumento.PERMISO_CIRCULACION, 0.95),
+        "cti": _clasificacion(TipoDocumento.CTI, 0.95),
     }
     estado = motor.evaluar_checklist(TipoTramite.TRANSFERENCIA, docs)
     mensaje = motor.preparar_mensaje_gestoria(estado, matricula="1234ABC")

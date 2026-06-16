@@ -115,7 +115,7 @@ def test_transferencia_particular_base():
         familia=FamiliaTramite.TRANSFERENCIA,
         subtipo=SubtipoTramite.COMPRAVENTA_PARTICULAR,
     )
-    assert "permiso_circulacion" in result.requisitos
+    assert "cti" in result.requisitos  # CTI es el doc principal de transferencia
     assert "modelo_620" in result.requisitos
     assert "dni" in result.requisitos
     assert "contrato_compraventa" in result.requisitos
@@ -134,7 +134,7 @@ def test_transferencia_herencia_requiere_docs_adicionales():
     assert "declaracion_herederos" in result.requisitos
     assert "anexo_650" in result.requisitos
     # Los de la base siguen estando
-    assert "permiso_circulacion" in result.requisitos
+    assert "cti" in result.requisitos
     assert "modelo_620" in result.requisitos
 
 

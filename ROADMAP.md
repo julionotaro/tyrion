@@ -201,13 +201,42 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ 3 tests nuevos (test_clasificador_usa_mock_sin_api_key, test_mock_*, ×3)
 - ✅ Suite acumulada: **181 pasando, 5 skipped, 0 fallos**
 
+### Sesión 9 — Tests de escenarios de negocio + fix de 4 bugs críticos (16/06/2026)
+- ✅ Metodología test-rojo → fix → test-verde aplicada en todos los bugs
+- ✅ **BUG 1 (Crítico)**: Escalado inmediato sin avisos previos — CORREGIDO
+  - Eliminado bloque de escalado directo en `procesar_email()` (líneas 332-352)
+  - `EstadoChecklist.debe_pedir_gestoria` ahora incluye rechazados (aviso_1 T+0)
+  - Escalado solo ocurre via `ejecutar_timers()` tras aviso_1 + aviso_2 sin respuesta
+- ✅ **BUG 2 (Alta)**: Estado no avanza a listo_dgt — CORREGIDO
+  - `ResultadoPipeline.listo_dgt` property: True cuando checklist completo y no no_telematico
+- ✅ **BUG 3 (Alta)**: CTI como EVIDENCIA en transferencia — CORREGIDO
+  - `CHECKLIST_POR_TRAMITE[TRANSFERENCIA]`: `"cti"` reemplaza `"permiso_circulacion"`
+  - `resolver_checklist()` TRANSFERENCIA actualizado igualmente
+  - CTI es el documento PRINCIPAL de transferencia (Cambio Titularidad Individual)
+- ✅ **BUG 4 (Baja)**: Badge alertas no filtraba tabla — CORREGIDO
+  - `filtroAlertas()` añadido al badge con toggle activo/inactivo
+  - `renderTabla()` filtra por `t.alerta` cuando `filtroAlertaActivo=true`
+  - `limpiarFiltros()` resetea el filtro de alerta
+- ✅ `test_escenarios_negocio.py` (NUEVO) — 12 tests end-to-end
+  - Transferencia completa → listo_dgt; sin docs → aviso_1 (no escalado)
+  - CTI es VALIDO en transferencia; herencia completa → listo_dgt
+  - Rechazado → aviso_1 a gestoría (nunca escalado directo)
+  - Escalado SOLO tras aviso_1 + aviso_2 sin respuesta (timer T+60)
+  - Matriculación tipo A completa; remolque sin impuesto; histórico → jefatura
+  - Badge alertas y avance automático a listo_dgt
+- ✅ `test_api_estados.py` (NUEVO) — 7 tests API de estados y escalado
+- ✅ Tests de regresión actualizados (test_motor_cotejo, test_resolver_checklist)
+- ✅ Suite acumulada: **200 pasando, 5 skipped, 0 fallos**
+
 ## ESTADO SESIÓN — 16/06/2026 (última)
 
 ### Próxima acción concreta
-- **Sesión 9**: SMTP real + integración Tempus API directa (pendiente confirmación cliente)
+- **Sesión 10**: SMTP real + tabla `requisitos_tramite` en BD (v2 árbol condicional)
 
 ### Decisiones tomadas
 - `docs/` es la referencia canónica de proceso
 - El flujo real arranca desde la planilla (Tempus), no desde el email
 - Emails sin match en planilla nunca se bloquean
-- Sin `ANTHROPIC_API_KEY` → clasificador mock automático (demo funciona sin credenciales)
+- Sin `ANTHROPIC_API_KEY` → clasificador mock automático
+- CTI (Cambio Titularidad Individual) es el doc principal de TRANSFERENCIA, no permiso_circulacion
+- Escalado al admin es SIEMPRE via timers (T+60), nunca directo en procesar_email()

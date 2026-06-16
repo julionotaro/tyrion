@@ -62,6 +62,16 @@ class ResultadoPipeline:
     def ok(self) -> bool:
         return not self.error
 
+    @property
+    def listo_dgt(self) -> bool:
+        """True cuando el checklist está completo y no es no_telematico."""
+        return (
+            self.estado_checklist is not None
+            and self.estado_checklist.completo
+            and not self.no_telematico
+            and not self.error
+        )
+
 
 class RepositorioPipeline(Protocol):
     """Abstracción de persistencia para el pipeline. Permite testear sin BD."""
@@ -329,27 +339,13 @@ class Pipeline:
                 len(estado.requisitos_faltantes), len(estado.requisitos_evidencia),
             )
 
+        # El escalado al admin ocurre SOLO via ejecutar_timers() tras T+60min sin respuesta.
+        # Nunca se escala directamente en procesar_email() — principio 3 de CLAUDE.md.
         if estado.debe_escalar_admin:
-            s = get_settings()
-            if s.email_administrativo:
-                cuerpo_admin = (
-                    f"Expediente {tramite_id} — documentos rechazados:\n"
-                    + "\n".join(f"  • {r}" for r in estado.requisitos_rechazados)
-                    + "\n\nRequiere revisión manual."
-                )
-                msg_admin = _preparar_aviso(
-                    tramite_id=tramite_id,
-                    destinatario=s.email_administrativo,
-                    tipo=TipoMensajeSaliente.ESCALADO,
-                    cuerpo=cuerpo_admin,
-                    matricula=matricula,
-                )
-                self._repo.guardar_mensaje_saliente(msg_admin)
-                resultado.mensajes_preparados.append(msg_admin)
-                logger.warning(
-                    "Trámite %s: escalado al administrativo (%d rechazados).",
-                    tramite_id, len(estado.requisitos_rechazados),
-                )
+            logger.info(
+                "Trámite %s: docs rechazados (%s) — aviso_1 a gestoría, escalado via timer T+60.",
+                tramite_id, ", ".join(estado.requisitos_rechazados),
+            )
 
         ep.estado = EstadoEmail.PROCESADO if ep.estado != EstadoEmail.ERROR else ep.estado
         self._repo.guardar_email_procesado(ep)
