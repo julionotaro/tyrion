@@ -324,6 +324,16 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ 4 tests nuevos — `backend/tests/test_documentos_carga.py`
 - ✅ Suite acumulada: **238 pasando, 5 skipped, 0 fallos**
 
+### Fix puntual — ClasificadorOpenAI nunca manda PDF a visión (16/06/2026)
+- ✅ `clasificador_openai.py` — orden estricto PDF: texto → chat | sin texto → PNG via fitz → visión image/png
+- ✅ `_extraer_texto_pdf(contenido: bytes)` recibe bytes (no ruta), usa `fitz.open(stream=...)`
+- ✅ Nueva función `_pdf_primera_pagina_png(contenido: bytes)` convierte primera página a PNG (dpi=150)
+- ✅ `_clasificar_vision_bytes(img_bytes, mime, ...)` reemplaza `_clasificar_vision(ruta, mime, ...)` — nunca acepta application/pdf
+- ✅ Imágenes JPG/PNG → visión directamente con su MIME correcto
+- ✅ 3 nuevos tests — `backend/tests/test_clasificador_openai_pdf.py` (PDF con texto, PDF sin texto, imagen JPG)
+- ✅ Tests existentes `test_clasificador_openai.py` actualizados a nueva firma
+- ✅ Suite acumulada: **241 pasando, 5 skipped, 0 fallos**
+
 ## ESTADO SESIÓN — 16/06/2026 (última)
 
 ### Próxima acción concreta

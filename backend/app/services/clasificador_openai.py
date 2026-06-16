@@ -62,18 +62,14 @@ Responde ÚNICAMENTE con un objeto JSON, sin texto adicional ni markdown:
 }}"""
 
 
-def _extraer_texto_pdf(ruta: str) -> str | None:
-    """Extrae texto de un PDF con PyMuPDF (fitz). Devuelve None si falla o vacío.
-
-    PyMuPDF es más robusto que pdfplumber en contenedores Linux: no arrastra
-    dependencias nativas problemáticas (cryptography/cffi) y es más rápido.
-    """
+def _extraer_texto_pdf(contenido: bytes) -> str | None:
+    """Extrae texto de un PDF con PyMuPDF (fitz). Devuelve None si falla o vacío."""
     try:
         import fitz  # PyMuPDF
     except BaseException:
         return None
     try:
-        doc = fitz.open(ruta)
+        doc = fitz.open(stream=contenido, filetype="pdf")
         try:
             partes = [doc[i].get_text() or "" for i in range(min(4, doc.page_count))]
         finally:
@@ -81,7 +77,26 @@ def _extraer_texto_pdf(ruta: str) -> str | None:
         texto = "\n".join(partes).strip()
         return texto if len(texto) > 50 else None
     except Exception as exc:
-        logger.debug("PyMuPDF falló en %s: %s", ruta, exc)
+        logger.debug("PyMuPDF extraer_texto falló: %s", exc)
+        return None
+
+
+def _pdf_primera_pagina_png(contenido: bytes) -> bytes | None:
+    """Convierte la primera página de un PDF a PNG via PyMuPDF. Devuelve None si falla."""
+    try:
+        import fitz  # PyMuPDF
+    except BaseException:
+        return None
+    try:
+        doc = fitz.open(stream=contenido, filetype="pdf")
+        try:
+            pix = doc.load_page(0).get_pixmap(dpi=150)
+            img_bytes = pix.tobytes("png")
+        finally:
+            doc.close()
+        return img_bytes
+    except Exception as exc:
+        logger.debug("PyMuPDF pdf→png falló: %s", exc)
         return None
 
 
@@ -160,6 +175,7 @@ class ClasificadorOpenAI:
         tipo_declarado: str | None = None,
     ) -> ResultadoClasificacion:
         ext = Path(ruta_archivo).suffix.lower()
+        contenido = Path(ruta_archivo).read_bytes()
         sistema = _construir_prompt_sistema()
         hint = (
             f"\n\nEl remitente lo declaró como '{tipo_declarado}', "
@@ -168,9 +184,10 @@ class ClasificadorOpenAI:
         )
 
         if ext == ".pdf":
-            texto = _extraer_texto_pdf(ruta_archivo)
+            # 1a. Intentar extracción de texto
+            texto = _extraer_texto_pdf(contenido)
             if texto:
-                # Ruta barata: texto puro
+                # Ruta barata: texto puro, sin visión
                 respuesta = await self._cliente_texto(sistema, texto + hint)
                 resultado = _parsear_respuesta(respuesta, tipo_declarado)
                 logger.info(
@@ -179,15 +196,22 @@ class ClasificadorOpenAI:
                     resultado.confianza_score,
                 )
                 return resultado
-            # Fallback: PDF como imagen (escaneado)
-            return await self._clasificar_vision(ruta_archivo, "application/pdf", tipo_declarado)
+            # 1c. PDF sin texto (escaneado): convertir primera página a PNG
+            img_bytes = _pdf_primera_pagina_png(contenido)
+            if img_bytes:
+                return await self._clasificar_vision_bytes(img_bytes, "image/png", tipo_declarado, ruta_archivo)
+            # Último recurso: si fitz tampoco puede rendir PNG, error descriptivo
+            raise ValueError(
+                f"No se pudo extraer texto ni convertir a imagen el PDF '{Path(ruta_archivo).name}'. "
+                "Comprueba que PyMuPDF (fitz) está instalado."
+            )
 
         if ext in MEDIA_TYPES_IMG:
             mime = {
                 ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                 ".webp": "image/webp", ".gif": "image/gif",
             }[ext]
-            return await self._clasificar_vision(ruta_archivo, mime, tipo_declarado)
+            return await self._clasificar_vision_bytes(contenido, mime, tipo_declarado, ruta_archivo)
 
         raise ValueError(f"Tipo de archivo no soportado: {ext}")
 
@@ -203,16 +227,20 @@ class ClasificadorOpenAI:
         )
         return resp.choices[0].message.content or ""
 
-    async def _clasificar_vision(
-        self, ruta: str, mime: str, tipo_declarado: str | None
+    async def _clasificar_vision_bytes(
+        self,
+        img_bytes: bytes,
+        mime: str,
+        tipo_declarado: str | None,
+        ruta_original: str = "",
     ) -> ResultadoClasificacion:
+        """Manda bytes de imagen (PNG/JPG — NUNCA PDF) a la API de visión de OpenAI."""
         hint = (
             f"\n\nEl remitente lo declaró como '{tipo_declarado}', "
             "pero verifica por ti mismo."
             if tipo_declarado else ""
         )
-        data = Path(ruta).read_bytes()
-        b64 = base64.standard_b64encode(data).decode()
+        b64 = base64.standard_b64encode(img_bytes).decode()
         url = f"data:{mime};base64,{b64}"
 
         resp = await self._client.chat.completions.create(
@@ -229,8 +257,9 @@ class ClasificadorOpenAI:
         )
         texto = resp.choices[0].message.content or ""
         resultado = _parsear_respuesta(texto, tipo_declarado)
+        nombre = Path(ruta_original).name if ruta_original else "imagen"
         logger.info(
             "Clasificador OpenAI (visión) procesó %s → %s (confianza %.2f)",
-            Path(ruta).name, resultado.tipo_detectado.value, resultado.confianza_score,
+            nombre, resultado.tipo_detectado.value, resultado.confianza_score,
         )
         return resultado

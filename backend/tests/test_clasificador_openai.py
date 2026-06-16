@@ -14,7 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.clasificador_openai import ClasificadorOpenAI, _extraer_texto_pdf
+from app.services.clasificador_openai import ClasificadorOpenAI, _extraer_texto_pdf, _pdf_primera_pagina_png
 from app.services.catalogo_documental import TipoDocumento
 
 PDF_MINIMO = b"%PDF-1.4 1 0 obj<</Type/Catalog>>stream\nendstream\nendobj"
@@ -67,18 +67,28 @@ async def test_clasificador_openai_texto_pdf(tmp_path):
 
 @pytest.mark.asyncio
 async def test_clasificador_openai_fallback_vision(tmp_path):
-    """PDF sin texto extraíble → fallback a visión."""
+    """PDF sin texto extraíble → convierte a PNG → fallback a visión (no PDF directo)."""
     pdf = tmp_path / "escaneado.pdf"
     pdf.write_bytes(PDF_MINIMO)
 
     cliente = _cliente_mock("permiso_circulacion", 0.88)
     clf = ClasificadorOpenAI(client=cliente)
 
-    with patch("app.services.clasificador_openai._extraer_texto_pdf", return_value=None):
+    PNG_FAKE = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+    with (
+        patch("app.services.clasificador_openai._extraer_texto_pdf", return_value=None),
+        patch("app.services.clasificador_openai._pdf_primera_pagina_png", return_value=PNG_FAKE),
+    ):
         resultado = await clf.clasificar(str(pdf))
 
     assert resultado.tipo_detectado == TipoDocumento.PERMISO_CIRCULACION
     assert resultado.confianza_nivel == "ALTA"
+    # La llamada a vision debe usar image/png, NUNCA application/pdf
+    call_kwargs = cliente.chat.completions.create.call_args.kwargs
+    msgs = call_kwargs["messages"]
+    user_content = next(m["content"] for m in msgs if m["role"] == "user")
+    img_url = next(p["image_url"]["url"] for p in user_content if p["type"] == "image_url")
+    assert img_url.startswith("data:image/png;base64,"), f"MIME incorrecto: {img_url[:40]}"
 
 
 @pytest.mark.asyncio
@@ -144,13 +154,10 @@ async def test_clasificador_openai_tipo_desconocido(tmp_path):
     assert resultado.tipo_detectado == TipoDocumento.DESCONOCIDO
 
 
-def test_extraer_texto_pdf_archivo_invalido(tmp_path):
-    """_extraer_texto_pdf nunca lanza excepción aunque pdfplumber falle."""
-    f = tmp_path / "notapdf.pdf"
-    f.write_text("esto no es un PDF")
+def test_extraer_texto_pdf_bytes_invalidos():
+    """_extraer_texto_pdf con bytes inválidos nunca lanza excepción."""
     try:
-        resultado = _extraer_texto_pdf(str(f))
-        # Si pdfplumber está disponible: devuelve None o str
+        resultado = _extraer_texto_pdf(b"esto no es un PDF")
         assert resultado is None or isinstance(resultado, str)
     except Exception as exc:
         pytest.fail(f"_extraer_texto_pdf no debe propagar excepciones: {exc}")
