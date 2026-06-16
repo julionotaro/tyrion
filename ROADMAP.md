@@ -228,10 +228,24 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - ✅ Tests de regresión actualizados (test_motor_cotejo, test_resolver_checklist)
 - ✅ Suite acumulada: **200 pasando, 5 skipped, 0 fallos**
 
+### Sesión 10a — Rediseño visual Pantalla Control (16/06/2026)
+- ✅ `backend/static/index.html` — rediseño visual completo (solo CSS/JS, sin tocar Python)
+  - Fuente Inter (Google Fonts) + sistema de custom properties CSS (20 variables)
+  - Paleta: `--navy` header, `--blue` activo, `--alert` rojo, `--success` verde, `--warn` ámbar
+  - `<header>` (56px, fondo navy): logo + `#cards` barra de estados inline + badge alertas
+  - `.card` como segmentos con separadores `::after` flecha → aspecto pipeline visual
+  - `body` flex-column 100vh; `#main` flex:1 min-height:0 (scroll correcto sin viewport overflow)
+  - `#panel-tabla` flex-column con `tabla-wrapper` scrollable independiente
+  - `#panel-detalle` 380px fijo con border-left; `#panel-split` 560px cuando visible
+  - `formatTiempo(mins)` — duración humana: "15m", "1h 30m", "2d 4h"
+  - Tabla: columna tiempo con `formatTiempo()` + columna `N docs` en vez de contador plano
+  - Todo el JS original preservado (mismos IDs, event listeners, funciones)
+- ✅ Suite acumulada: **200 pasando, 5 skipped, 0 fallos** (sin cambios en tests)
+
 ## ESTADO SESIÓN — 16/06/2026 (última)
 
 ### Próxima acción concreta
-- **Sesión 10**: SMTP real + tabla `requisitos_tramite` en BD (v2 árbol condicional)
+- **Sesión 10b**: SMTP real + tabla `requisitos_tramite` en BD (v2 árbol condicional)
 
 ### Decisiones tomadas
 - `docs/` es la referencia canónica de proceso

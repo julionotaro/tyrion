@@ -4,125 +4,572 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tyrion — Pantalla Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
   :root {
-    --azul:    #2563eb; --azul-claro: #dbeafe;
-    --verde:   #16a34a; --verde-claro: #dcfce7;
-    --naranja: #ea580c; --naranja-claro: #ffedd5;
-    --rojo:    #dc2626; --rojo-claro: #fee2e2;
-    --gris:    #6b7280; --gris-claro: #f3f4f6;
-    --borde:   #e5e7eb; --texto: #111827; --fondo: #f9fafb;
+    --navy:       #0F1B2D;
+    --blue:       #1E3A5F;
+    --blue-light: #EBF2FB;
+    --bg:         #F4F6F9;
+    --white:      #FFFFFF;
+    --alert:      #E8531A;
+    --alert-bg:   #FEF0EA;
+    --success:    #1A7A4A;
+    --success-bg: #E8F5EE;
+    --warn:       #B45309;
+    --warn-bg:    #FEF3C7;
+    --danger:     #B91C1C;
+    --danger-bg:  #FEE2E2;
+    --text:       #111827;
+    --text-2:     #4B5563;
+    --text-3:     #9CA3AF;
+    --border:     #E5E7EB;
+    --border-2:   #D1D5DB;
+    --radius-sm:  4px;
+    --radius:     8px;
+    --radius-lg:  12px;
+    --shadow:     0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:  0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.05);
   }
-  body { font-family: system-ui, sans-serif; background: var(--fondo); color: var(--texto); font-size: 14px; }
+
+  html, body { height: 100%; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
 
   /* ── HEADER ── */
-  header { background: #1e3a5f; color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
-  header span { font-size: 12px; color: #94a3b8; }
-  #badge-alertas { margin-left: auto; background: var(--rojo); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 700; display: none; }
+  header {
+    background: var(--navy);
+    color: #fff;
+    height: 56px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .header-brand {
+    display: flex;
+    flex-direction: column;
+    margin-right: 24px;
+    flex-shrink: 0;
+  }
+  .header-brand h1 {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    line-height: 1.1;
+    color: #fff;
+  }
+  .header-brand .sub {
+    font-size: 10px;
+    color: #94a3b8;
+    letter-spacing: .2px;
+    margin-top: 1px;
+  }
 
-  /* ── CARDS ── */
-  #cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 16px 24px 0; }
-  .card { background: #fff; border: 2px solid var(--borde); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color .15s, box-shadow .15s; user-select: none; }
-  .card:hover { border-color: var(--azul); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-  .card.activo { border-color: var(--azul); background: var(--azul-claro); }
-  .card .num { font-size: 32px; font-weight: 800; line-height: 1; color: var(--azul); }
-  .card .label { font-size: 11px; color: var(--gris); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
-  .card.con-alerta .num { color: var(--rojo); }
+  /* Barra de estados (reemplaza los cards) */
+  #cards {
+    display: flex;
+    align-items: stretch;
+    flex: 1;
+    height: 100%;
+    gap: 0;
+    overflow: hidden;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 16px;
+    cursor: pointer;
+    position: relative;
+    border-bottom: 3px solid transparent;
+    transition: background .15s, border-color .15s;
+    min-width: 90px;
+    gap: 1px;
+  }
+  .card::after {
+    content: '›';
+    position: absolute;
+    right: -1px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #2d4a6b;
+    font-size: 18px;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .card:last-child::after { display: none; }
+  .card:hover { background: rgba(255,255,255,.07); }
+  .card.activo {
+    background: rgba(255,255,255,.1);
+    border-bottom-color: #fff;
+  }
+  .card .num {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+  }
+  .card.con-alerta .num { color: var(--alert); }
+  .card .label {
+    font-size: 10px;
+    color: #94a3b8;
+    letter-spacing: .3px;
+    white-space: nowrap;
+  }
+  .card.activo .label { color: #cbd5e1; }
+
+  /* Badge alertas en header */
+  #badge-alertas {
+    flex-shrink: 0;
+    margin-left: 12px;
+    background: var(--alert);
+    color: #fff;
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    display: none;
+    cursor: pointer;
+    transition: opacity .15s;
+    white-space: nowrap;
+    align-items: center;
+    gap: 4px;
+  }
+  #badge-alertas:hover { opacity: .85; }
+  #badge-alertas.activo { outline: 2px solid rgba(255,255,255,.4); }
 
   /* ── LAYOUT PRINCIPAL ── */
-  #main { display: flex; height: calc(100vh - 122px); padding: 16px 24px; gap: 16px; }
+  #main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    gap: 0;
+  }
 
-  /* ── TABLA ── */
-  #panel-tabla { flex: 1; overflow-y: auto; background: #fff; border-radius: 10px; border: 1px solid var(--borde); min-width: 0; }
-  #barra-filtros { display: flex; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--borde); align-items: center; flex-wrap: wrap; }
-  #barra-filtros input, #barra-filtros select { border: 1px solid var(--borde); border-radius: 6px; padding: 6px 10px; font-size: 13px; outline: none; }
-  #barra-filtros input:focus, #barra-filtros select:focus { border-color: var(--azul); }
-  #btn-limpiar { margin-left: auto; font-size: 12px; color: var(--gris); cursor: pointer; background: none; border: none; }
+  /* ── PANEL TABLA ── */
+  #panel-tabla {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  #barra-filtros {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    flex-wrap: wrap;
+    background: var(--white);
+    flex-shrink: 0;
+  }
+  #barra-filtros input, #barra-filtros select {
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    color: var(--text);
+    background: var(--white);
+    transition: border-color .15s;
+  }
+  #barra-filtros input:focus, #barra-filtros select:focus {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 2px rgba(30,58,95,.1);
+  }
+  #barra-filtros input { width: 220px; }
+  #btn-limpiar {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-3);
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    transition: color .15s;
+  }
+  #btn-limpiar:hover { color: var(--text); }
+
+  .tabla-wrapper {
+    flex: 1;
+    overflow-y: auto;
+  }
   table { width: 100%; border-collapse: collapse; }
-  thead th { padding: 10px 14px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--gris); background: var(--gris-claro); border-bottom: 1px solid var(--borde); position: sticky; top: 0; }
-  tbody tr { border-bottom: 1px solid var(--borde); cursor: pointer; transition: background .1s; }
-  tbody tr:hover { background: var(--azul-claro); }
-  tbody tr.seleccionada { background: var(--azul-claro); font-weight: 600; }
-  tbody td { padding: 10px 14px; vertical-align: middle; }
-  .badge-estado { display: inline-block; border-radius: 12px; padding: 2px 10px; font-size: 11px; font-weight: 600; }
-  .badge-recibido           { background: #e0f2fe; color: #0369a1; }
-  .badge-en_revision        { background: #fef9c3; color: #854d0e; }
-  .badge-pendiente_gestoria { background: var(--naranja-claro); color: var(--naranja); }
-  .badge-listo_dgt          { background: var(--verde-claro); color: var(--verde); }
-  .badge-en_cadeteria       { background: #ede9fe; color: #6d28d9; }
-  .badge-cerrado            { background: var(--gris-claro); color: var(--gris); }
-  .alerta-icon { color: var(--rojo); font-size: 16px; }
-  #sin-resultados { padding: 40px; text-align: center; color: var(--gris); display: none; }
+  thead th {
+    padding: 9px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    color: var(--text-3);
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    background: var(--white);
+    transition: background .1s;
+  }
+  tbody tr:hover { background: var(--blue-light); }
+  tbody tr.seleccionada {
+    background: var(--blue-light);
+    border-left: 3px solid var(--blue);
+  }
+  tbody td {
+    padding: 10px 14px;
+    vertical-align: middle;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  tbody td:nth-child(2) { color: var(--text); font-weight: 600; }
+  tbody td:nth-child(7) { color: var(--text-3); font-size: 12px; }
+
+  .badge-estado {
+    display: inline-block;
+    border-radius: 10px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .badge-recibido           { background: var(--blue-light); color: var(--blue); }
+  .badge-en_revision        { background: var(--warn-bg);    color: var(--warn); }
+  .badge-pendiente_gestoria { background: var(--alert-bg);   color: var(--alert); }
+  .badge-listo_dgt          { background: var(--success-bg); color: var(--success); }
+  .badge-en_cadeteria       { background: #EDE9FE;           color: #6D28D9; }
+  .badge-cerrado            { background: #F3F4F6;           color: var(--text-3); }
+
+  .alerta-icon { color: var(--alert); font-size: 14px; }
+
+  .tiempo-entrada {
+    color: var(--text-3);
+    font-size: 11px;
+    margin-left: 4px;
+  }
+
+  #sin-resultados {
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--text-3);
+    display: none;
+    font-size: 13px;
+  }
+  #sin-resultados::before {
+    content: '📋';
+    display: block;
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
 
   /* ── PANEL LATERAL (detalle trámite) ── */
-  #panel-detalle { width: 360px; background: #fff; border-radius: 10px; border: 1px solid var(--borde); overflow-y: auto; display: none; flex-direction: column; flex-shrink: 0; }
+  #panel-detalle {
+    width: 380px;
+    background: var(--white);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    display: none;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
   #panel-detalle.visible { display: flex; }
-  #detalle-header { padding: 14px 16px; border-bottom: 1px solid var(--borde); }
-  #detalle-header h2 { font-size: 15px; font-weight: 700; padding-right: 24px; }
-  #detalle-header .meta { font-size: 12px; color: var(--gris); margin-top: 3px; }
-  #btn-cerrar-detalle { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gris); margin-top: -2px; }
-  #detalle-cuerpo { padding: 14px 16px; flex: 1; }
-  .seccion-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--gris); font-weight: 700; margin: 14px 0 6px; }
+
+  #detalle-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #detalle-header h2 {
+    font-size: 15px;
+    font-weight: 600;
+    padding-right: 28px;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  #detalle-header .meta {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-top: 3px;
+  }
+  #btn-cerrar-detalle {
+    float: right;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-3);
+    margin-top: -2px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    transition: color .1s, background .1s;
+  }
+  #btn-cerrar-detalle:hover { color: var(--text); background: var(--bg); }
+
+  #detalle-cuerpo {
+    padding: 14px 16px;
+    flex: 1;
+  }
+
+  .seccion-titulo {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: var(--text-3);
+    margin: 16px 0 7px;
+  }
   .seccion-titulo:first-child { margin-top: 0; }
-  .doc-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--borde); }
+
+  .doc-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+  }
   .doc-item:last-child { border-bottom: none; }
-  .doc-validez { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
-  .doc-VALIDO               { background: var(--verde-claro); color: var(--verde); }
-  .doc-EVIDENCIA_COMPATIBLE { background: var(--naranja-claro); color: var(--naranja); }
-  .doc-RECHAZADO            { background: var(--rojo-claro); color: var(--rojo); }
-  .doc-nombre { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .doc-link { font-size: 11px; color: var(--azul); cursor: pointer; text-decoration: underline; flex-shrink: 0; }
-  .doc-link:hover { color: #1d4ed8; }
-  .evento-item { padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: 12px; }
+  .doc-validez {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    letter-spacing: .2px;
+  }
+  .doc-VALIDO               { background: var(--success-bg); color: var(--success); }
+  .doc-EVIDENCIA_COMPATIBLE { background: var(--warn-bg);    color: var(--warn); }
+  .doc-RECHAZADO            { background: var(--danger-bg);  color: var(--danger); }
+  .doc-nombre {
+    flex: 1;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .doc-link {
+    font-size: 11px;
+    color: var(--blue);
+    cursor: pointer;
+    text-decoration: none;
+    flex-shrink: 0;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--blue-light);
+    font-weight: 500;
+    transition: background .1s, border-color .1s;
+  }
+  .doc-link:hover { background: var(--blue-light); border-color: var(--blue); }
+
+  .evento-item {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
   .evento-item:last-child { border-bottom: none; }
-  .evento-hora { font-size: 11px; color: var(--gris); }
-  .aviso-item { background: var(--naranja-claro); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; font-size: 12px; }
-  .aviso-tipo { font-weight: 700; color: var(--naranja); }
-  #btn-escalar { display: none; width: calc(100% - 32px); margin: 0 16px 16px; background: var(--rojo); color: #fff; border: none; border-radius: 8px; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
-  #btn-escalar:hover { background: #b91c1c; }
-  #btn-escalar:disabled { background: var(--gris); cursor: not-allowed; }
+  .evento-item > div:first-child { font-size: 13px; color: var(--text); }
+  .evento-hora {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 2px;
+  }
+
+  .aviso-item {
+    background: var(--alert-bg);
+    border-left: 3px solid var(--alert);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .aviso-tipo {
+    font-weight: 700;
+    color: var(--alert);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+  }
+
+  #btn-escalar {
+    display: none;
+    width: calc(100% - 32px);
+    margin: 0 16px 16px;
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background .15s;
+    flex-shrink: 0;
+  }
+  #btn-escalar:hover { background: #991b1b; }
+  #btn-escalar:disabled { background: var(--text-3); cursor: not-allowed; }
 
   /* ── SPLIT-VIEW DOCUMENTAL ── */
-  #panel-split { display: none; flex-direction: column; background: #fff; border-radius: 10px; border: 1px solid var(--borde); overflow: hidden; }
-  #panel-split.visible { display: flex; width: 700px; flex-shrink: 0; }
-  #split-header { padding: 10px 16px; border-bottom: 1px solid var(--borde); display: flex; align-items: center; gap: 10px; }
-  #split-header h3 { font-size: 14px; font-weight: 700; flex: 1; }
-  #btn-cerrar-split { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--gris); }
-  #split-body { display: flex; flex: 1; overflow: hidden; }
-  #split-izq { flex: 1; background: var(--gris-claro); display: flex; align-items: center; justify-content: center; border-right: 1px solid var(--borde); font-size: 13px; color: var(--gris); padding: 20px; text-align: center; }
-  #split-der { width: 300px; overflow-y: auto; padding: 14px; flex-shrink: 0; }
-  .campo-item { display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--borde); align-items: flex-start; }
+  #panel-split {
+    display: none;
+    flex-direction: column;
+    background: var(--white);
+    border-left: 1px solid var(--border);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  #panel-split.visible { display: flex; width: 560px; }
+
+  #split-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  #split-header h3 {
+    font-size: 13px;
+    font-weight: 600;
+    flex: 1;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #btn-cerrar-split {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--text-3);
+    padding: 2px 4px;
+    border-radius: var(--radius-sm);
+    transition: color .1s, background .1s;
+    line-height: 1;
+  }
+  #btn-cerrar-split:hover { color: var(--text); background: var(--bg); }
+
+  #split-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #split-izq {
+    flex: 1;
+    background: #F8F9FA;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-3);
+    padding: 20px;
+    text-align: center;
+  }
+  #split-der {
+    width: 280px;
+    overflow-y: auto;
+    padding: 14px;
+    flex-shrink: 0;
+  }
+
+  .campo-item {
+    display: flex;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: flex-start;
+  }
   .campo-item:last-child { border-bottom: none; }
-  .campo-estado { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
-  .campo-nombre { font-size: 11px; color: var(--gris); flex-shrink: 0; width: 110px; }
-  .campo-valor  { font-size: 13px; font-weight: 600; flex: 1; }
-  #split-justificacion { margin-top: 12px; padding: 10px; background: var(--gris-claro); border-radius: 8px; font-size: 12px; color: var(--gris); line-height: 1.5; }
-  .validez-banner { padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; margin-bottom: 12px; }
-  .banner-VALIDO               { background: var(--verde-claro); color: var(--verde); }
-  .banner-EVIDENCIA_COMPATIBLE { background: var(--naranja-claro); color: var(--naranja); }
-  .banner-RECHAZADO            { background: var(--rojo-claro); color: var(--rojo); }
+  .campo-estado { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .campo-nombre {
+    font-size: 11px;
+    color: var(--text-3);
+    flex-shrink: 0;
+    width: 110px;
+    padding-top: 1px;
+  }
+  .campo-valor { font-size: 13px; font-weight: 600; flex: 1; color: var(--text); }
+
+  #split-justificacion {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+
+  .validez-banner {
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .banner-VALIDO               { background: var(--success-bg); color: var(--success); }
+  .banner-EVIDENCIA_COMPATIBLE { background: var(--warn-bg);    color: var(--warn); }
+  .banner-RECHAZADO            { background: var(--danger-bg);  color: var(--danger); }
 
   /* ── FOOTER ── */
-  #footer { text-align: right; padding: 3px 24px; font-size: 11px; color: var(--gris); }
+  #footer {
+    text-align: right;
+    padding: 3px 16px;
+    font-size: 11px;
+    color: var(--text-3);
+    background: var(--white);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Tyrion</h1>
-  <span>Pantalla Control — Colegio de Gestores</span>
+  <div class="header-brand">
+    <h1>Tyrion</h1>
+    <span class="sub">Colegio de Gestores · Pontevedra</span>
+  </div>
+
+  <!-- Barra de estados (sustituye los cards flotantes) -->
+  <div id="cards"></div>
+
   <div id="badge-alertas" onclick="filtroAlertas()" style="cursor:pointer">⚠ <span id="num-alertas">0</span> alertas</div>
 </header>
-
-<div id="cards"></div>
 
 <div id="main">
   <!-- Tabla principal -->
   <div id="panel-tabla">
     <div id="barra-filtros">
-      <input id="filtro-texto" type="text" placeholder="Buscar matrícula o gestoría…" style="width:220px">
+      <input id="filtro-texto" type="text" placeholder="Buscar matrícula, bastidor o gestoría…">
       <select id="filtro-tipo">
         <option value="">Todos los tipos</option>
         <option value="TRANSFERENCIA">Transferencia</option>
@@ -131,16 +578,23 @@
       </select>
       <button id="btn-limpiar" onclick="limpiarFiltros()">✕ Limpiar</button>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th></th><th>Matrícula / Bastidor</th><th>Gestoría</th>
-          <th>Tipo</th><th>Estado</th><th>Entrada</th><th>Docs</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div id="sin-resultados">Sin trámites para los filtros seleccionados.</div>
+    <div class="tabla-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:28px"></th>
+            <th>Matrícula / Bastidor</th>
+            <th>Gestoría</th>
+            <th>Tipo</th>
+            <th>Estado</th>
+            <th>Entrada</th>
+            <th>Docs</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="sin-resultados">Sin trámites para los filtros seleccionados.</div>
+    </div>
   </div>
 
   <!-- Panel lateral: detalle del trámite -->
@@ -198,8 +652,17 @@ function minutosDesde(iso) {
   const d = new Date(iso);
   return isNaN(d) ? 0 : Math.floor((Date.now() - d) / 60000);
 }
+function formatTiempo(mins) {
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h < 24) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const hRest = h % 24;
+  return hRest > 0 ? `${d}d ${hRest}h` : `${d}d`;
+}
 
-// ── Cards ──
+// ── Cards (barra de estados en header) ──
 async function cargarStats() {
   const stats = await apiFetch('/api/stats');
   const orden = ['recibido','en_revision','pendiente_gestoria','listo_dgt','en_cadeteria','cerrado'];
@@ -252,9 +715,9 @@ function renderTabla() {
       <td><strong>${id}</strong></td>
       <td>${t.gestoria}</td>
       <td>${t.tipo}</td>
-      <td><span class="badge-estado badge-${t.estado}">${t.estado_label}</span></td>
-      <td>${hora} <span style="color:var(--gris);font-size:11px">(${mins}m)</span></td>
-      <td>${t.num_docs}</td>
+      <td><span class="badge-estado badge-${t.estado}" title="${t.estado_label}">${t.estado_label}</span></td>
+      <td>${hora} <span class="tiempo-entrada">${formatTiempo(mins)}</span></td>
+      <td>${t.num_docs} docs</td>
     </tr>`;
   }).join('');
 }
@@ -299,7 +762,7 @@ async function abrirDetalle(id) {
 
   // Documentos: el enlace "Ver" abre el split-view si tiene extracción
   const docsHtml = !t.documentos.length
-    ? '<p style="color:var(--gris);font-size:12px">Sin documentos recibidos.</p>'
+    ? '<p style="color:var(--text-3);font-size:12px">Sin documentos recibidos.</p>'
     : t.documentos.map(d => {
         const verBtn = d.id
           ? `<span class="doc-link" onclick="abrirSplit('${d.id}','${d.nombre}')">Ver</span>`
@@ -316,7 +779,7 @@ async function abrirDetalle(id) {
     t.avisos_pendientes.map(a =>
       `<div class="aviso-item"><span class="aviso-tipo">${a.tipo.toUpperCase()}</span>
        · ${a.requisito}
-       <span style="color:var(--gris);font-size:11px"> · ${formatHora(a.enviado_at)}</span></div>`
+       <span style="color:var(--text-3);font-size:11px"> · ${formatHora(a.enviado_at)}</span></div>`
     ).join('');
 
   const histHtml = [...t.historial].reverse().map(h =>
@@ -353,14 +816,14 @@ async function abrirSplit(docId, nombre) {
   document.getElementById('split-titulo').textContent = nombre;
   document.getElementById('panel-split').classList.add('visible');
   document.getElementById('split-campos').innerHTML =
-    '<p style="color:var(--gris);font-size:12px">Cargando…</p>';
+    '<p style="color:var(--text-3);font-size:12px">Cargando…</p>';
 
   let ext;
   try {
     ext = await apiFetch(`/api/documentos/${docId}/extraccion`);
   } catch(e) {
     document.getElementById('split-campos').innerHTML =
-      `<p style="color:var(--rojo)">Error al cargar extracción: ${e.message}</p>`;
+      `<p style="color:var(--danger)">Error al cargar extracción: ${e.message}</p>`;
     return;
   }
 
@@ -372,9 +835,9 @@ async function abrirSplit(docId, nombre) {
   } else {
     izq.innerHTML = `
       <div>
-        <div style="font-size:48px;margin-bottom:12px">📄</div>
-        <strong style="font-size:13px;color:var(--texto)">${ext.nombre}</strong><br>
-        <span style="font-size:11px;color:var(--gris);margin-top:6px;display:block">
+        <div style="font-size:40px;margin-bottom:10px">📄</div>
+        <strong style="font-size:13px;color:var(--text-2)">${ext.nombre}</strong><br>
+        <span style="font-size:11px;color:var(--text-3);margin-top:6px;display:block;line-height:1.6">
           Archivo no disponible en modo de prueba.<br>
           En producción se mostrará el PDF original.
         </span>
@@ -386,11 +849,16 @@ async function abrirSplit(docId, nombre) {
   const bannerTxt  = { VALIDO: 'VÁLIDO', EVIDENCIA_COMPATIBLE: 'EVIDENCIA COMPATIBLE', RECHAZADO: 'RECHAZADO' };
 
   const campoIcon = { valido: '✓', evidencia: '⚠', rechazado: '✗', ilegible: '?' };
-  const campoColor = { valido: 'var(--verde)', evidencia: 'var(--naranja)', rechazado: 'var(--rojo)', ilegible: 'var(--gris)' };
+  const campoColor = {
+    valido: 'var(--success)',
+    evidencia: 'var(--warn)',
+    rechazado: 'var(--danger)',
+    ilegible: 'var(--text-3)'
+  };
 
   const camposHtml = ext.campos_extraidos.map(c => `
     <div class="campo-item">
-      <span class="campo-estado" style="color:${campoColor[c.estado]||'var(--gris)'}">
+      <span class="campo-estado" style="color:${campoColor[c.estado]||'var(--text-3)'}">
         ${campoIcon[c.estado]||'?'}
       </span>
       <span class="campo-nombre">${c.campo}</span>
@@ -405,7 +873,7 @@ async function abrirSplit(docId, nombre) {
       </span>
     </div>
     <p class="seccion-titulo">Campos extraídos</p>
-    ${camposHtml || '<p style="color:var(--gris);font-size:12px">Sin campos extraídos.</p>'}
+    ${camposHtml || '<p style="color:var(--text-3);font-size:12px">Sin campos extraídos.</p>'}
     <div id="split-justificacion">${ext.justificacion}</div>
   `;
 }
