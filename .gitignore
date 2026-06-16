@@ -10,3 +10,4 @@ venv/
 uploads/
 *.log
 .DS_Store
+.claude/
