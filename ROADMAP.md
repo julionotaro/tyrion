@@ -175,3 +175,29 @@ Gestiona trámites de vehículos ante DGT para 70 gestorías (~200 trámites/dí
 - `docs/` es la referencia canónica de proceso (junto con `matriz-documental-tramites.md` ya existente)
 - El flujo real arranca desde la planilla (Tempus), no desde el email
 - Emails sin match en planilla nunca se bloquean (planilla puede llegar después)
+
+### Sesión 8 — PDFs reales + watcher Tempus + make demo (16/06/2026)
+- ✅ `storage.py` (NUEVO) — almacenamiento local de archivos
+  - `guardar_archivo(doc_id, bytes, nombre, mime)` → guarda en uploads_dir/{doc_id}/
+  - `obtener_archivo(doc_id)` → (bytes, mime_type) | FileNotFoundError
+- ✅ `documentos.py` — endpoint `/api/documentos/{doc_id}/archivo` operativo
+  - Antes: 503 placeholder. Ahora: sirve el PDF real con `Response(content, media_type)`
+  - 404 si el archivo no existe en disco
+- ✅ `config.py` ampliado
+  - `uploads_dir: str = "/tmp/tyrion_uploads"` (antes: /var/tyrion/uploads, sin watch_dir)
+  - `watch_dir: str = "/tmp/tyrion_watch"` (nuevo)
+- ✅ `migrations/004_storage.sql` — columnas `archivo_path` y `archivo_mime` en `documentos`
+- ✅ `watcher_planilla.py` (NUEVO) — polling automático de CSVs Tempus
+  - `procesar_archivo(ruta)` → parsea, mueve a procesados/, devuelve nº trámites
+  - `run_watcher(intervalo, repo)` — tarea asyncio periódica para el worker
+- ✅ `docker-compose.yml` corregido
+  - Volúmenes `data/uploads:/tmp/tyrion_uploads` (api) y `data/watch:/tmp/tyrion_watch` (worker)
+  - `DATABASE_URL` corregido a `postgresql+asyncpg://...` (era `postgresql://...`)
+  - Env vars `UPLOADS_DIR` y `WATCH_DIR` en ambos servicios
+- ✅ `tools/cargar_docs_prueba.py` — genera 8 PDFs mínimos para demo local
+- ✅ `tools/datos_muestra/` — CSVs de muestra (8 transmisiones + 3 matrículas)
+- ✅ `Makefile` — target `demo` (docker up → cargar docs → drop CSVs en watch_dir)
+- ✅ `README.md` — sección "Demo en 1 comando"
+- ✅ `backend/.env.example` — variables `WATCH_DIR` y `UPLOADS_DIR`
+- ✅ 9 tests nuevos (test_storage × 4, test_watcher_planilla × 4, test_demo × 1)
+- ✅ Suite acumulada: **178 pasando, 5 skipped, 0 fallos**
