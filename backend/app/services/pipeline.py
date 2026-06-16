@@ -40,6 +40,8 @@ from app.services.catalogo_documental import TipoTramite
 from app.services.clasificador import ClasificadorDocumental
 from app.services.ingesta_email import AdjuntoEmail, EmailEntrante
 from app.services.motor_cotejo import EstadoChecklist, MotorCotejo
+from app.services.cruce_planilla import CruceResult, ConfianzaCruce, MetodoCruce, cruzar_email_con_planilla
+from app.services.ingesta_planilla import PlanillaDia
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +54,8 @@ class ResultadoPipeline:
     clasificaciones: dict[str, ResultadoClasificacion] = field(default_factory=dict)
     estado_checklist: EstadoChecklist | None = None
     mensajes_preparados: list[MensajeSaliente] = field(default_factory=list)
+    cruce_planilla: CruceResult | None = None
+    no_telematico: bool = False
     error: str = ""
 
     @property
@@ -83,6 +87,9 @@ class RepositorioEnMemoria:
     def __init__(self):
         self._emails: dict[str, EmailProcesado] = {}
         self._mensajes: list[MensajeSaliente] = []
+        self._planillas: list = []
+        self._tramites_planificados: list = []
+        self._cruces: list[dict] = []
 
     def guardar_email_procesado(self, ep: EmailProcesado) -> None:
         self._emails[ep.message_id] = ep
@@ -118,6 +125,38 @@ class RepositorioEnMemoria:
             and not m.enviado
             and m.preparado_at <= umbral
         ]
+
+    # Planilla
+    def guardar_planilla_dia(self, planilla) -> str:
+        self._planillas.append(planilla)
+        return f"planilla-mem-{len(self._planillas)}"
+
+    def guardar_tramite_planificado(self, tp, planilla_id: str) -> str:
+        self._tramites_planificados.append(tp)
+        return f"tp-mem-{len(self._tramites_planificados)}"
+
+    def buscar_tramite_planificado_por_bastidor(self, bastidor: str):
+        from app.services.ingesta_planilla import _normalizar_bastidor
+        b = _normalizar_bastidor(bastidor)
+        return [t for t in self._tramites_planificados if t.bastidor == b]
+
+    def buscar_tramite_planificado_por_matricula(self, matricula: str):
+        from app.services.ingesta_planilla import _normalizar_matricula
+        m = _normalizar_matricula(matricula)
+        return [t for t in self._tramites_planificados if t.matricula == m]
+
+    def listar_tramites_sin_match_hoy(self) -> list[dict]:
+        return [c for c in self._cruces if c.get("metodo") == "sin_match"]
+
+    def guardar_cruce_resultado(
+        self, email_message_id: str, tramite_planificado_id, confianza: str, metodo: str,
+    ) -> None:
+        self._cruces.append({
+            "email_message_id": email_message_id,
+            "tramite_planificado_id": tramite_planificado_id,
+            "confianza": confianza,
+            "metodo": metodo,
+        })
 
 
 def _guardar_adjunto_temporal(adjunto: AdjuntoEmail) -> str:
@@ -171,10 +210,12 @@ class Pipeline:
         repo: RepositorioPipeline,
         clasificador: ClasificadorDocumental | None = None,
         motor: MotorCotejo | None = None,
+        planilla: PlanillaDia | None = None,
     ):
         self._repo = repo
         self._clf = clasificador or ClasificadorDocumental()
         self._motor = motor or MotorCotejo()
+        self._planilla = planilla  # planilla del día; None = sin planilla cargada
 
     async def procesar_email(
         self,
@@ -183,14 +224,45 @@ class Pipeline:
         tramite_id: str,
         gestoria_email: str,
         matricula: str | None = None,
+        bastidor: str | None = None,
+        nif_adquirente: str | None = None,
+        no_telematico: bool = False,
     ) -> ResultadoPipeline:
         """Procesa un email completo: clasifica adjuntos, coteja, prepara avisos.
+
+        Si hay planilla del día cargada, intenta el cruce email↔planilla.
+        Emails sin match NO se bloquean: continúan el flujo normal.
+
+        Si no_telematico=True → el trámite va a Jefatura, no se escala al admin.
 
         Si falta documentación o hay errores → prepara aviso_1 automáticamente
         (T+0). Los avisos siguientes (aviso_2 y escalado) los dispara
         `ejecutar_timers()`, que debe llamarse periódicamente.
         """
-        resultado = ResultadoPipeline(email_message_id=email_entrante.message_id)
+        resultado = ResultadoPipeline(
+            email_message_id=email_entrante.message_id,
+            no_telematico=no_telematico,
+        )
+
+        # Cruce con la planilla del día (Fase 3 del flujo operativo)
+        cruce = cruzar_email_con_planilla(
+            bastidor_email=bastidor or "",
+            matricula_email=matricula or "",
+            nif_email=nif_adquirente or "",
+            planilla=self._planilla,
+        )
+        resultado.cruce_planilla = cruce
+        if cruce.tiene_match:
+            logger.info(
+                "Email %s cruzado con planilla: método=%s confianza=%s expediente=%s",
+                email_entrante.message_id, cruce.metodo.value,
+                cruce.confianza.value, cruce.tramite_planificado.num_expediente,
+            )
+        else:
+            logger.info(
+                "Email %s sin match en planilla — continúa flujo normal (pendiente_revision).",
+                email_entrante.message_id,
+            )
         ep = EmailProcesado(
             message_id=email_entrante.message_id,
             remitente=email_entrante.remitente,
@@ -228,6 +300,17 @@ class Pipeline:
 
         estado = self._motor.evaluar_checklist(tipo_tramite, docs_por_requisito)
         resultado.estado_checklist = estado
+
+        # Vehículos no telemáticos (históricos ART.11 RD982/2024) van a Jefatura,
+        # no se escalan al administrativo aunque falte documentación.
+        if no_telematico:
+            logger.info(
+                "Trámite %s: no telemático → pendiente_jefatura (no se escala al admin).",
+                tramite_id,
+            )
+            ep.estado = EstadoEmail.PROCESADO if ep.estado != EstadoEmail.ERROR else ep.estado
+            self._repo.guardar_email_procesado(ep)
+            return resultado
 
         if estado.debe_pedir_gestoria:
             cuerpo = self._motor.preparar_mensaje_gestoria(estado, matricula=matricula)

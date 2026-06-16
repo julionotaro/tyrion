@@ -18,9 +18,16 @@ from app.api.datos_prueba import (
     ETIQUETAS_ESTADO,
     MACRO_ESTADOS,
     TRAMITES_PRUEBA,
+    PLANILLA_DIA_PRUEBA,
+    planilla_prueba_como_objeto,
 )
 from app.api.deps import get_usar_datos_prueba
 from app.repositories.repositorio_postgres import RepositorioPostgres
+from app.services.ingesta_planilla import (
+    parse_relacion_transmisiones,
+    parse_relacion_matriculas,
+    TipoPlanilla,
+)
 
 router = APIRouter(prefix="/api", tags=["control"])
 
@@ -62,6 +69,10 @@ class StatsResponse(BaseModel):
     etiquetas: dict[str, str]
     total: int
     alertas: int
+    total_planificados: int = 0
+    sin_match: int = 0
+    pendiente_jefatura: int = 0
+    sin_documentacion: int = 0
 
 
 class EscalarResponse(BaseModel):
@@ -183,21 +194,43 @@ def detalle_tramite(
 def stats(
     usar_prueba: bool = Depends(get_usar_datos_prueba),
 ) -> StatsResponse:
-    """Conteos por macro-estado para los 6 cards superiores del dashboard."""
+    """Conteos por macro-estado + métricas de planilla para los cards del dashboard."""
     tramites = _tramites_fuente(usar_prueba)
     conteos: dict[str, int] = {estado: 0 for estado in MACRO_ESTADOS}
     alertas = 0
+    pendiente_jefatura = 0
     for t in tramites:
         estado = t.get("estado", "recibido")
         if estado in conteos:
             conteos[estado] += 1
+        elif estado == "pendiente_jefatura":
+            pendiente_jefatura += 1
         if t.get("alerta"):
             alertas += 1
+
+    # Métricas de planilla
+    if usar_prueba:
+        planilla = PLANILLA_DIA_PRUEBA
+        total_planificados = len(planilla.get("tramites_planificados", []))
+        sin_documentacion = sum(
+            1 for tp in planilla.get("tramites_planificados", [])
+            if tp.get("estado") == "sin_documentacion"
+        )
+        sin_match = len(planilla.get("emails_sin_match", []))
+    else:
+        total_planificados = 0
+        sin_documentacion = 0
+        sin_match = 0
+
     return StatsResponse(
         conteos=conteos,
         etiquetas=ETIQUETAS_ESTADO,
         total=len(tramites),
         alertas=alertas,
+        total_planificados=total_planificados,
+        sin_match=sin_match,
+        pendiente_jefatura=pendiente_jefatura,
+        sin_documentacion=sin_documentacion,
     )
 
 
@@ -234,3 +267,110 @@ def escalar_tramite(
         ok=True,
         mensaje="Trámite escalado al administrativo. Mensaje PREPARADO.",
     )
+
+
+# ── Endpoints de planilla ─────────────────────────────────────────────────────
+
+class PlanillaCargarRequest(BaseModel):
+    contenido: str
+    tipo: str   # "TRANSMISIONES" | "MATRICULAS"
+    fuente: str = "manual"
+
+
+class PlanillaCargarResponse(BaseModel):
+    ok: bool
+    tipo: str
+    filas_parseadas: int
+    mensaje: str
+
+
+class PlanillaHoyResponse(BaseModel):
+    fecha: str
+    tipo: str
+    total_planificados: int
+    sin_documentacion: int
+    con_documentacion: int
+    validados: int
+    escalados: int
+
+
+class SinMatchResponse(BaseModel):
+    emails_sin_match: list[dict[str, Any]]
+    total: int
+
+
+@router.post("/planilla", response_model=PlanillaCargarResponse)
+def cargar_planilla(
+    payload: PlanillaCargarRequest,
+    usar_prueba: bool = Depends(get_usar_datos_prueba),
+) -> PlanillaCargarResponse:
+    """Carga la planilla del día (texto plano CSV exportado de Tempus).
+
+    En modo prueba: parsea y devuelve el conteo sin persistir.
+    En modo BD real: persiste en tabla planilla_dia + tramite_planificado.
+    """
+    tipo_upper = payload.tipo.upper()
+    try:
+        if tipo_upper == TipoPlanilla.TRANSMISIONES.value:
+            planilla = parse_relacion_transmisiones(payload.contenido, fuente=payload.fuente)
+        elif tipo_upper == TipoPlanilla.MATRICULAS.value:
+            planilla = parse_relacion_matriculas(payload.contenido, fuente=payload.fuente)
+        else:
+            raise HTTPException(400, f"Tipo de planilla desconocido: '{payload.tipo}'. "
+                                "Usar TRANSMISIONES o MATRICULAS.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(422, f"Error parseando planilla: {exc}") from exc
+
+    if not usar_prueba:
+        try:
+            repo = RepositorioPostgres()
+            planilla_id = repo.guardar_planilla_dia(planilla)
+            for tp in planilla.tramites:
+                repo.guardar_tramite_planificado(tp, planilla_id)
+        except Exception as exc:
+            raise HTTPException(503, f"Error persistiendo planilla: {exc}") from exc
+
+    return PlanillaCargarResponse(
+        ok=True,
+        tipo=tipo_upper,
+        filas_parseadas=len(planilla.tramites),
+        mensaje=f"Planilla {tipo_upper} cargada: {len(planilla.tramites)} trámites planificados.",
+    )
+
+
+@router.get("/planilla/hoy", response_model=PlanillaHoyResponse)
+def planilla_hoy(
+    usar_prueba: bool = Depends(get_usar_datos_prueba),
+) -> PlanillaHoyResponse:
+    """Estado de la planilla del día: cuántos trámites tienen/no tienen documentación."""
+    if usar_prueba:
+        tps = PLANILLA_DIA_PRUEBA.get("tramites_planificados", [])
+        return PlanillaHoyResponse(
+            fecha=PLANILLA_DIA_PRUEBA["fecha"],
+            tipo=PLANILLA_DIA_PRUEBA["tipo"],
+            total_planificados=len(tps),
+            sin_documentacion=sum(1 for t in tps if t["estado"] == "sin_documentacion"),
+            con_documentacion=sum(1 for t in tps if t["estado"] == "con_documentacion"),
+            validados=sum(1 for t in tps if t["estado"] == "validado"),
+            escalados=sum(1 for t in tps if t["estado"] == "escalado"),
+        )
+    # BD real: pendiente implementación completa
+    raise HTTPException(503, "Planilla desde BD real: pendiente sesión 8.")
+
+
+@router.get("/planilla/sin-match", response_model=SinMatchResponse)
+def planilla_sin_match(
+    usar_prueba: bool = Depends(get_usar_datos_prueba),
+) -> SinMatchResponse:
+    """Emails recibidos hoy sin fila correspondiente en la planilla."""
+    if usar_prueba:
+        sin_match = PLANILLA_DIA_PRUEBA.get("emails_sin_match", [])
+        return SinMatchResponse(emails_sin_match=sin_match, total=len(sin_match))
+    try:
+        repo = RepositorioPostgres()
+        sin_match = repo.listar_tramites_sin_match_hoy()
+        return SinMatchResponse(emails_sin_match=sin_match, total=len(sin_match))
+    except Exception as exc:
+        raise HTTPException(503, f"Error consultando sin_match: {exc}") from exc

@@ -23,6 +23,13 @@ from app.models.persistencia import (
     MensajeSaliente,
     TipoMensajeSaliente,
 )
+from app.services.ingesta_planilla import (
+    EstadoTramitePlanificado,
+    PlanillaDia,
+    TramitePlanificado,
+    _normalizar_bastidor,
+    _normalizar_matricula,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -257,3 +264,124 @@ class RepositorioPostgres:
                 cur.execute(sql, (tramite_id,))
                 rows = cur.fetchall()
         return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------ #
+    # planilla_dia / tramite_planificado                                  #
+    # ------------------------------------------------------------------ #
+
+    def guardar_planilla_dia(self, planilla: PlanillaDia) -> str:
+        """Guarda la planilla y devuelve su id UUID."""
+        sql = """
+            INSERT INTO planilla_dia (fecha, tipo, fuente)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (fecha, tipo) DO UPDATE
+                SET fuente = EXCLUDED.fuente
+            RETURNING id
+        """
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (
+                    planilla.fecha,
+                    planilla.tipo.value,
+                    planilla.fuente,
+                ))
+                planilla_id = cur.fetchone()["id"]
+                conn.commit()
+        return str(planilla_id)
+
+    def guardar_tramite_planificado(self, tp: TramitePlanificado, planilla_id: str) -> str:
+        sql = """
+            INSERT INTO tramite_planificado
+                (planilla_id, bastidor, matricula, nif_adquirente,
+                 num_expediente, nombre_titular, tipo_tramite, estado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (
+                    planilla_id,
+                    tp.bastidor or None,
+                    tp.matricula or None,
+                    tp.nif_adquirente or None,
+                    tp.num_expediente or None,
+                    tp.nombre_titular or None,
+                    tp.tipo_tramite,
+                    tp.estado.value,
+                ))
+                row_id = cur.fetchone()["id"]
+                conn.commit()
+        return str(row_id)
+
+    def buscar_tramite_planificado_por_bastidor(self, bastidor: str) -> list[TramitePlanificado]:
+        b = _normalizar_bastidor(bastidor)
+        sql = """
+            SELECT bastidor, matricula, nif_adquirente, num_expediente,
+                   nombre_titular, tipo_tramite, estado, tramite_id
+              FROM tramite_planificado
+             WHERE bastidor = %s
+        """
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (b,))
+                rows = cur.fetchall()
+        return [_row_a_tramite_planificado(r) for r in rows]
+
+    def buscar_tramite_planificado_por_matricula(self, matricula: str) -> list[TramitePlanificado]:
+        m = _normalizar_matricula(matricula)
+        sql = """
+            SELECT bastidor, matricula, nif_adquirente, num_expediente,
+                   nombre_titular, tipo_tramite, estado, tramite_id
+              FROM tramite_planificado
+             WHERE matricula = %s
+        """
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (m,))
+                rows = cur.fetchall()
+        return [_row_a_tramite_planificado(r) for r in rows]
+
+    def listar_tramites_sin_match_hoy(self) -> list[dict]:
+        """Emails registrados hoy sin match en planilla (para auditoría)."""
+        sql = """
+            SELECT email_message_id, confianza, metodo, creado_at
+              FROM cruce_email_planilla
+             WHERE metodo = 'sin_match'
+               AND creado_at::date = CURRENT_DATE
+          ORDER BY creado_at DESC
+        """
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = cur.fetchall()
+        return [dict(r) for r in rows]
+
+    def guardar_cruce_resultado(
+        self,
+        email_message_id: str,
+        tramite_planificado_id: str | None,
+        confianza: str,
+        metodo: str,
+    ) -> None:
+        sql = """
+            INSERT INTO cruce_email_planilla
+                (email_message_id, tramite_planificado_id, confianza, metodo)
+            VALUES (%s, %s, %s, %s)
+        """
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (email_message_id, tramite_planificado_id, confianza, metodo))
+            conn.commit()
+
+
+def _row_a_tramite_planificado(r: dict) -> TramitePlanificado:
+    return TramitePlanificado(
+        bastidor=r.get("bastidor") or "",
+        matricula=r.get("matricula") or "",
+        nif_adquirente=r.get("nif_adquirente") or "",
+        num_expediente=r.get("num_expediente") or "",
+        nombre_titular=r.get("nombre_titular") or "",
+        tipo_tramite=r.get("tipo_tramite") or "",
+        estado=EstadoTramitePlanificado(r.get("estado", "sin_documentacion")),
+        tramite_id=str(r["tramite_id"]) if r.get("tramite_id") else None,
+    )

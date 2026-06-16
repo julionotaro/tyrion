@@ -423,4 +423,154 @@ ETIQUETAS_ESTADO = {
     "listo_dgt":          "Listo DGT",
     "en_cadeteria":       "En cadetería",
     "cerrado":            "Cerrado",
+    "pendiente_jefatura": "Pendiente Jefatura",
 }
+
+# ── Planilla del día simulada ─────────────────────────────────────────────────
+# 8 trámites planificados que corresponden a los 8 trámites de prueba.
+# + 1 sin documentación (email aún no recibido)
+# + 1 email simulado sin match en planilla (bastidor desconocido)
+
+PLANILLA_DIA_PRUEBA: dict[str, Any] = {
+    "fecha": "2026-06-15",
+    "tipo": "TRANSMISIONES",
+    "fuente": "tempus",
+    "tramites_planificados": [
+        {
+            "id": "tp-001",
+            "bastidor": "VS6RFD000X1234",
+            "matricula": "1234ABC",
+            "nif_adquirente": "12345678A",
+            "num_expediente": "EXP-2026-001",
+            "nombre_titular": "Juan García López",
+            "tipo_tramite": "TRANSFERENCIA",
+            "estado": "con_documentacion",
+            "tramite_id": "t-001",
+        },
+        {
+            "id": "tp-002",
+            "bastidor": "WVWZZZ1KZAW123456",
+            "matricula": "5678DEF",
+            "nif_adquirente": "87654321B",
+            "num_expediente": "EXP-2026-002",
+            "nombre_titular": "Ana Martín Pérez",
+            "tipo_tramite": "TRANSFERENCIA",
+            "estado": "con_documentacion",
+            "tramite_id": "t-002",
+        },
+        {
+            "id": "tp-003",
+            "bastidor": "VF3XXXXXX12345678",
+            "matricula": "9012GHI",
+            "nif_adquirente": "11223344C",
+            "num_expediente": "EXP-2026-003",
+            "nombre_titular": "Carlos Ruiz Fernández",
+            "tipo_tramite": "TRANSFERENCIA",
+            "estado": "con_documentacion",
+            "tramite_id": "t-003",
+        },
+        {
+            "id": "tp-004",
+            "bastidor": "ZFA19800000537243",
+            "matricula": "3456JKL",
+            "nif_adquirente": "55667788D",
+            "num_expediente": "EXP-2026-004",
+            "nombre_titular": "María López Sanz",
+            "tipo_tramite": "MATRICULACION",
+            "estado": "con_documentacion",
+            "tramite_id": "t-004",
+        },
+        {
+            "id": "tp-005",
+            "bastidor": "VSSZZZ6KZHR123456",
+            "matricula": "7890MNO",
+            "nif_adquirente": "99887766E",
+            "num_expediente": "EXP-2026-005",
+            "nombre_titular": "Pedro Sánchez Torres",
+            "tipo_tramite": "TRANSFERENCIA",
+            "estado": "con_documentacion",
+            "tramite_id": "t-005",
+        },
+        {
+            "id": "tp-006",
+            "bastidor": "TMBJF7NE5HJ123456",
+            "matricula": "2345PQR",
+            "nif_adquirente": "44556677F",
+            "num_expediente": "EXP-2026-006",
+            "nombre_titular": "Laura González Vega",
+            "tipo_tramite": "BAJA",
+            "estado": "con_documentacion",
+            "tramite_id": "t-006",
+        },
+        {
+            "id": "tp-007",
+            "bastidor": "WBA3B31090F123456",
+            "matricula": "6789STU",
+            "nif_adquirente": "33445566G",
+            "num_expediente": "EXP-2026-007",
+            "nombre_titular": "Antonio Díaz Morales",
+            "tipo_tramite": "TRANSFERENCIA",
+            "estado": "escalado",
+            "tramite_id": "t-007",
+        },
+        {
+            "id": "tp-008",
+            "bastidor": "1HGCM82633A123456",
+            "matricula": "0123VWX",
+            "nif_adquirente": "22334455H",
+            "num_expediente": "EXP-2026-008",
+            "nombre_titular": "Isabel Romero Castro",
+            "tipo_tramite": "MATRICULACION",
+            "estado": "con_documentacion",
+            "tramite_id": "t-008",
+        },
+        # Trámite planificado SIN email recibido (sin_documentacion)
+        {
+            "id": "tp-009",
+            "bastidor": "SB1BA4BE50E123456",
+            "matricula": "4567YZA",
+            "nif_adquirente": "11112222I",
+            "num_expediente": "EXP-2026-009",
+            "nombre_titular": "Roberto Fernández Gil",
+            "tipo_tramite": "TRANSFERENCIA",
+            "estado": "sin_documentacion",
+            "tramite_id": None,
+        },
+    ],
+    # Email simulado que llegó pero NO tiene fila en la planilla
+    "emails_sin_match": [
+        {
+            "message_id": "sin-match-001@gestorias.es",
+            "remitente": "nueva@gestorias.es",
+            "asunto": "Documentación trámite XYZ",
+            "bastidor_detectado": "XXXXXXXXXXXXXXX99",
+            "matricula_detectada": "9999ZZZ",
+            "recibido_at": _hace(20),
+        },
+    ],
+}
+
+
+def planilla_prueba_como_objeto():
+    """Devuelve la planilla de prueba como objeto PlanillaDia (para tests y pipeline)."""
+    from datetime import date
+    from app.services.ingesta_planilla import PlanillaDia, TipoPlanilla, TramitePlanificado, EstadoTramitePlanificado
+
+    tramites = []
+    for tp in PLANILLA_DIA_PRUEBA["tramites_planificados"]:
+        tramites.append(TramitePlanificado(
+            bastidor=tp["bastidor"],
+            matricula=tp["matricula"],
+            nif_adquirente=tp["nif_adquirente"],
+            num_expediente=tp["num_expediente"],
+            nombre_titular=tp["nombre_titular"],
+            tipo_tramite=tp["tipo_tramite"],
+            estado=EstadoTramitePlanificado(tp["estado"]),
+            tramite_id=tp.get("tramite_id"),
+        ))
+    return PlanillaDia(
+        fecha=date(2026, 6, 15),
+        tipo=TipoPlanilla.TRANSMISIONES,
+        fuente="tempus",
+        tramites=tramites,
+    )
