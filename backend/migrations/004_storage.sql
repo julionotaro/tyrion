@@ -1,0 +1,2 @@
+ALTER TABLE documentos ADD COLUMN IF NOT EXISTS archivo_path VARCHAR(500);
+ALTER TABLE documentos ADD COLUMN IF NOT EXISTS archivo_mime VARCHAR(100);

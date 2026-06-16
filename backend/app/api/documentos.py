@@ -18,7 +18,10 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
+
+from app.services.storage import obtener_archivo
 
 from app.api.datos_prueba import DOCUMENTOS_PRUEBA, TRAMITES_PRUEBA
 from app.api.deps import get_usar_datos_prueba
@@ -119,21 +122,10 @@ def extraccion_documento(
 
 
 @router.get("/documentos/{doc_id}/archivo")
-def archivo_documento(doc_id: str) -> dict[str, str]:
-    """Sirve el archivo original del documento (PDF/imagen).
-
-    TODO sesión 6: servir desde uploads_dir con FileResponse.
-    Por ahora devuelve un placeholder indicando que el archivo no está disponible
-    en modo de prueba.
-    """
-    doc = DOCUMENTOS_PRUEBA.get(doc_id)
-    if not doc:
-        raise HTTPException(404, f"Documento '{doc_id}' no encontrado.")
-    if not doc.get("tiene_archivo", False):
-        raise HTTPException(
-            503,
-            "Archivo no disponible en modo de prueba. "
-            "En producción se servirá desde uploads_dir.",
-        )
-    # TODO: return FileResponse(ruta, media_type="application/pdf")
-    raise HTTPException(501, "Servicio de archivos no implementado todavía.")
+def archivo_documento(doc_id: str) -> Response:
+    """Sirve el archivo original del documento (PDF/imagen) desde uploads_dir."""
+    try:
+        contenido, mime = obtener_archivo(doc_id)
+        return Response(content=contenido, media_type=mime)
+    except FileNotFoundError:
+        raise HTTPException(404, f"Archivo del documento '{doc_id}' no disponible.")

@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     confianza_media: float = 0.60
 
     # Almacenamiento de documentos
-    uploads_dir: str = "/var/tyrion/uploads"
+    uploads_dir: str = "/tmp/tyrion_uploads"
+
+    # Watcher de planillas Tempus (CSV drop)
+    watch_dir: str = "/tmp/tyrion_watch"
 
     # Ingesta de email (IMAP). En pruebas: Gmail con app password.
     # En producción: buzón corporativo. Todo por entorno, nada hardcodeado.

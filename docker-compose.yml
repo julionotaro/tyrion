@@ -29,10 +29,13 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app          # hot-reload en desarrollo
+      - ./data/uploads:/tmp/tyrion_uploads
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://tyrion:tyrion@db:5432/tyrion
+      DATABASE_URL: postgresql+asyncpg://tyrion:tyrion@db:5432/tyrion
+      UPLOADS_DIR: /tmp/tyrion_uploads
+      WATCH_DIR: /tmp/tyrion_watch
     depends_on:
       db:
         condition: service_healthy
@@ -45,10 +48,12 @@ services:
     restart: unless-stopped
     volumes:
       - ./backend:/app
+      - ./data/watch:/tmp/tyrion_watch
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://tyrion:tyrion@db:5432/tyrion
+      DATABASE_URL: postgresql+asyncpg://tyrion:tyrion@db:5432/tyrion
+      WATCH_DIR: /tmp/tyrion_watch
     depends_on:
       db:
         condition: service_healthy
