@@ -130,7 +130,7 @@ class FuenteIMAP:
             return []
 
         crudos: list[bytes] = []
-        conn = imaplib.IMAP4_SSL(self._s.imap_host, self._s.imap_port)
+        conn = imaplib.IMAP4_SSL(self._s.imap_host, self._s.imap_port, timeout=30)
         try:
             conn.login(self._s.imap_user, self._s.imap_password)
             conn.select(self._s.imap_mailbox)

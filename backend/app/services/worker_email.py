@@ -142,7 +142,9 @@ async def run_email_worker(
     while True:
         try:
             vistos = _repo.mensaje_ids_procesados()
-            nuevos = ingesta.poll(vistos)
+            # poll() hace I/O IMAP síncrono (imaplib) — se corre en thread aparte
+            # para no bloquear el event loop de asyncio durante connect/login/fetch.
+            nuevos = await asyncio.to_thread(ingesta.poll, vistos)
 
             for email in nuevos:
                 if not email.tiene_adjuntos_utiles:

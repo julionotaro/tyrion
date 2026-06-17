@@ -6,6 +6,7 @@ registro_tramites.listar_tramites(). Sin red, sin BD, sin clasificador real:
   - FuenteEnMemoria: fuente de correo con emails RFC822 prefabricados.
   - RepositorioEnMemoria: repositorio en memoria (ya definido en pipeline.py).
   - ClasificadorMock: devuelve un resultado determinista para cualquier archivo.
+  - FuenteLenta: simula IMAP lento/colgado para test de no-bloqueo del event loop.
 
 Tests:
   - Email con adjunto útil → trámite aparece en registro_tramites
@@ -16,6 +17,7 @@ Tests:
 """
 import asyncio
 import email as email_lib
+import time
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -80,12 +82,17 @@ class ClasificadorMock:
 
 
 async def _run_one_cycle(fuente, repo, pipeline):
-    """Ejecuta exactamente un ciclo del worker y cancela."""
+    """Ejecuta exactamente un ciclo del worker y cancela.
+
+    Con asyncio.to_thread el poll() corre en un thread real, así que hay que
+    esperar con asyncio.sleep() suficiente para que el thread termine y el ciclo
+    completo (poll + clasificación + escritura en registro) se complete.
+    """
     task = asyncio.create_task(
-        run_email_worker(intervalo=0, fuente=fuente, repo=repo, pipeline=pipeline)
+        run_email_worker(intervalo=9999, fuente=fuente, repo=repo, pipeline=pipeline)
     )
-    await asyncio.sleep(0)   # cede control para que el worker ejecute el ciclo
-    await asyncio.sleep(0)   # segunda cesión para clasificaciones async
+    # 0.5s es más que suficiente para un FuenteEnMemoria (sin red ni disco real)
+    await asyncio.sleep(0.5)
     task.cancel()
     try:
         await task
@@ -223,3 +230,97 @@ async def test_carga_manual_no_afectada_por_worker():
     assert len(tramites) == 2
     origenes = {t["origen"] for t in tramites}
     assert origenes == {"carga_manual", "email"}
+
+
+# ── Test de no-bloqueo del event loop (regresión del bug de startup) ──────────
+
+class _FuenteLenta:
+    """Simula una fuente IMAP que tarda 300ms (bloqueo síncrono en thread).
+
+    Con asyncio.to_thread el event loop sigue libre durante ese tiempo.
+    Sin to_thread, bloquearía el event loop y congela el startup de FastAPI.
+    """
+    DELAY = 0.3  # segundos de bloqueo síncrono
+
+    def mensajes_crudos(self) -> list[bytes]:
+        time.sleep(self.DELAY)
+        return []
+
+
+@pytest.mark.asyncio
+async def test_imap_lento_no_bloquea_event_loop():
+    """Regresión: IMAP bloqueante corre en thread, el event loop sigue libre.
+
+    Lanza el worker con una fuente que tarda 300ms síncronos (simula Gmail lento).
+    Simultáneamente lanza una coroutine que se marca lista tras 30ms.
+    Si el event loop estuviera bloqueado, la coroutine no podría correr y
+    el evento no estaría set en 150ms. Con asyncio.to_thread sí está.
+    """
+    event_loop_libre = asyncio.Event()
+
+    async def _marcar_libre():
+        await asyncio.sleep(0.03)  # 30ms — mucho menos que los 300ms de IMAP
+        event_loop_libre.set()
+
+    repo = RepositorioEnMemoria()
+    pipeline = Pipeline(repo=repo, clasificador=ClasificadorMock())
+
+    worker_task = asyncio.create_task(
+        run_email_worker(intervalo=9999, fuente=_FuenteLenta(), repo=repo, pipeline=pipeline)
+    )
+    check_task = asyncio.create_task(_marcar_libre())
+
+    # Esperar máximo 150ms — la mitad del bloqueo IMAP simulado.
+    # Si el event loop no está bloqueado, los 30ms de _marcar_libre se completan bien antes.
+    try:
+        await asyncio.wait_for(asyncio.shield(event_loop_libre.wait()), timeout=0.15)
+        loop_libre = True
+    except asyncio.TimeoutError:
+        loop_libre = False
+    finally:
+        worker_task.cancel()
+        check_task.cancel()
+        await asyncio.gather(worker_task, check_task, return_exceptions=True)
+
+    assert loop_libre, (
+        "El event loop se bloqueó durante el poll IMAP — "
+        "asyncio.to_thread no está aplicado correctamente en run_email_worker"
+    )
+
+
+@pytest.mark.asyncio
+async def test_startup_completa_sin_bloqueo_con_imap_lento():
+    """El lifespan de FastAPI completa el startup aunque IMAP tarde 300ms.
+
+    Verifica que asyncio.create_task + asyncio.to_thread en el worker permiten
+    que el startup (yield en lifespan) ocurra inmediatamente, independientemente
+    del tiempo que tarde la conexión IMAP.
+    """
+    from contextlib import asynccontextmanager
+
+    startup_completado = asyncio.Event()
+
+    @asynccontextmanager
+    async def lifespan_simulado():
+        task = asyncio.create_task(
+            run_email_worker(
+                intervalo=9999,
+                fuente=_FuenteLenta(),
+                repo=RepositorioEnMemoria(),
+                pipeline=Pipeline(repo=RepositorioEnMemoria(), clasificador=ClasificadorMock()),
+            )
+        )
+        startup_completado.set()  # equivalente al yield de FastAPI
+        yield
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    start = time.monotonic()
+    async with lifespan_simulado():
+        elapsed = time.monotonic() - start
+
+    # El startup debe completarse en <50ms, no en los 300ms del IMAP lento
+    assert elapsed < 0.05, (
+        f"Startup tardó {elapsed:.3f}s — el worker bloqueó el arranque de FastAPI"
+    )
+    assert startup_completado.is_set()
