@@ -21,6 +21,7 @@ from app.services.catalogo_documental import (
     TipoDocumento,
     RASGOS_DISTINTIVOS,
     CONFUSIONES_FRECUENTES,
+    CAMPOS_REQUERIDOS,
     evaluar_completitud_extraccion,
 )
 
@@ -38,6 +39,11 @@ def _construir_prompt_sistema() -> str:
         for tipo, conf in CONFUSIONES_FRECUENTES.items()
     )
     tipos_validos = ", ".join(t.value for t in TipoDocumento)
+    campos_por_tipo = "\n".join(
+        f"  - {tipo.value}: {campos}"
+        for tipo, campos in CAMPOS_REQUERIDOS.items()
+        if campos  # omitir tipos sin campos (hoja_caja, desconocido, etc.)
+    )
     return f"""Eres el clasificador documental de una gestoría de trámites de vehículos ante la DGT española.
 
 Tu tarea: identificar QUÉ ES un documento, con un nivel de confianza honesto.
@@ -48,17 +54,20 @@ TIPOS DE DOCUMENTO QUE RECONOCES:
 CONFUSIONES FRECUENTES (mucho cuidado con estas):
 {confusiones}
 
+CAMPOS A EXTRAER POR TIPO (devuelve null si no encuentras el campo — NO lo omitas):
+{campos_por_tipo}
+
 REGLAS CRÍTICAS:
 1. El tipo declarado es solo una pista, NO un dato confiable.
 2. Si no estás seguro, baja la confianza. Confianza honesta de 0.5 > falso 0.9.
-3. Extrae los datos clave visibles: matrícula, bastidor, titular/nombre, DNI, importe, fechas.
+3. Extrae EXACTAMENTE los campos listados para el tipo que detectes. Usa null para los que no aparezcan.
 4. Si no encaja en ningún tipo, devuelve "desconocido" con baja confianza.
 
 Responde ÚNICAMENTE con un objeto JSON, sin texto adicional ni markdown:
 {{
   "tipo_detectado": "uno de: {tipos_validos}",
   "confianza_score": 0.0 a 1.0,
-  "datos_extraidos": {{"matricula": "...", "titular": "...", ...}},
+  "datos_extraidos": {{"campo": "valor o null si no aparece", ...}},
   "justificacion": "1-2 frases sobre qué viste para decidir"
 }}"""
 

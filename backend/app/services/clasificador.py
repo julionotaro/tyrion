@@ -30,6 +30,7 @@ from app.services.catalogo_documental import (
     TipoDocumento,
     RASGOS_DISTINTIVOS,
     CONFUSIONES_FRECUENTES,
+    CAMPOS_REQUERIDOS,
     evaluar_completitud_extraccion,
 )
 
@@ -57,6 +58,11 @@ def _construir_prompt_sistema() -> str:
         for tipo, conf in CONFUSIONES_FRECUENTES.items()
     )
     tipos_validos = ", ".join(t.value for t in TipoDocumento)
+    campos_por_tipo = "\n".join(
+        f"  - {tipo.value}: {campos}"
+        for tipo, campos in CAMPOS_REQUERIDOS.items()
+        if campos  # omitir tipos sin campos (hoja_caja, desconocido, etc.)
+    )
 
     return f"""Eres el clasificador documental de una gestoría de trámites de vehículos ante la DGT española.
 
@@ -68,17 +74,20 @@ TIPOS DE DOCUMENTO QUE RECONOCES:
 CONFUSIONES FRECUENTES (mucho cuidado con estas):
 {confusiones}
 
+CAMPOS A EXTRAER POR TIPO (devuelve null si no encuentras el campo — NO lo omitas):
+{campos_por_tipo}
+
 REGLAS CRÍTICAS:
 1. El tipo que el remitente DECLARA es solo una pista, NO un dato confiable. Las gestorías dicen "Permiso" y envían un Modelo 620. Clasifica por lo que VES en el documento, no por lo que digan.
 2. Si no estás seguro, baja la confianza. Es mejor una confianza honesta de 0.5 que un 0.9 equivocado: la confianza baja activa revisión humana, un falso 0.9 deja pasar un error.
-3. Extrae los datos clave que veas para el cotejo posterior: matrícula, bastidor, titular/nombre, DNI, importe, fechas. Solo lo que realmente aparezca.
+3. Extrae EXACTAMENTE los campos listados para el tipo que detectes. Usa null para los que no aparezcan.
 4. Si el documento no encaja en ningún tipo conocido, devuelve "desconocido" con baja confianza.
 
 Responde ÚNICAMENTE con un objeto JSON, sin texto adicional ni markdown:
 {{
   "tipo_detectado": "uno de: {tipos_validos}",
   "confianza_score": 0.0 a 1.0,
-  "datos_extraidos": {{"matricula": "...", "titular": "...", ...}},
+  "datos_extraidos": {{"campo": "valor o null si no aparece", ...}},
   "justificacion": "1-2 frases sobre qué viste para decidir"
 }}"""
 
