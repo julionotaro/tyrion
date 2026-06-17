@@ -142,12 +142,18 @@ def resolver_checklist(
 
     # ── Checklist base por familia ─────────────────────────────────────────────
     if familia == FamiliaTramite.TRANSFERENCIA:
-        # CTI (Certificado de Transferencia Individual) es el doc principal (no permiso_circulacion)
+        # PENDIENTE FASE 3: confirmar si el doc principal de transferencia es cti o
+        # permiso_circulacion (matriz §2.1 dice permiso_circulacion, instructivo B.1 dice cti)
         base = ["cti", "modelo_620", "dni", "contrato_compraventa"]
 
-        # §5.1.E — Herencia: documentación adicional
+        # §5.1.E — Herencia: mortis causa — no hay compraventa; sustituye contrato por docs de sucesión
         if subtipo == SubtipoTramite.HERENCIA:
+            base.remove("contrato_compraventa")
             base += ["certificado_defuncion", "modelo_650", "declaracion_herederos", "anexo_650"]
+
+        # §5.1.G — Empresa adquirente implícita en compra_empresa
+        if subtipo == SubtipoTramite.COMPRA_EMPRESA:
+            naturaleza_partes = NaturalezaPartes.EMPRESA_ADQUIRENTE
 
     elif familia == FamiliaTramite.MATRICULACION:
         base = ["solicitud_matriculacion", "ficha_tecnica", "ivtm", "impuesto_matriculacion", "dni"]
