@@ -124,7 +124,11 @@ def test_transferencia_particular_base():
 
 
 def test_transferencia_herencia_requiere_docs_adicionales():
-    """Herencia: requiere defunción, modelo 650, herederos y Anexo 650 (§5.1.E)."""
+    """Herencia: requiere defunción, modelo 650, herederos y Anexo 650 (§5.1.E).
+
+    B10 CONFIRMADO: herencia tributa por Sucesiones (modelo_650), NO por ITP (modelo_620).
+    modelo_620 se elimina del checklist de herencia.
+    """
     result = resolver_checklist(
         familia=FamiliaTramite.TRANSFERENCIA,
         subtipo=SubtipoTramite.HERENCIA,
@@ -133,9 +137,9 @@ def test_transferencia_herencia_requiere_docs_adicionales():
     assert "modelo_650" in result.requisitos
     assert "declaracion_herederos" in result.requisitos
     assert "anexo_650" in result.requisitos
-    # Los de la base siguen estando
+    # cti y dni del base se conservan; modelo_620 NO (ITP ≠ Sucesiones)
     assert "cti" in result.requisitos
-    assert "modelo_620" in result.requisitos
+    assert "modelo_620" not in result.requisitos
 
 
 def test_transferencia_empresa_adquirente_requiere_poder_y_cif():

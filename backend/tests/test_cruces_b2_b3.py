@@ -99,13 +99,14 @@ def test_bastidor_cruce_matriculacion_consistente():
 # ── Checklist herencia (B1) ────────────────────────────────────────────────────
 
 def test_checklist_herencia_completo():
-    """Herencia: checklist tiene exactamente los docs correctos según matriz §2.1."""
+    """Herencia: checklist confirmado por cliente (B10) — sin modelo_620 ni contrato_compraventa."""
     cl = resolver_checklist(FamiliaTramite.TRANSFERENCIA, SubtipoTramite.HERENCIA)
     reqs = set(cl.requisitos)
 
-    esperados = {"cti", "modelo_620", "dni", "certificado_defuncion",
+    # B10 CONFIRMADO: herencia tributa por Sucesiones (650), no por ITP (620)
+    esperados = {"cti", "dni", "certificado_defuncion",
                  "modelo_650", "declaracion_herederos", "anexo_650"}
-    prohibidos = {"contrato_compraventa"}
+    prohibidos = {"contrato_compraventa", "modelo_620"}
 
     assert esperados.issubset(reqs), f"Faltan: {esperados - reqs}"
     assert not (prohibidos & reqs), f"No deben estar: {prohibidos & reqs}"

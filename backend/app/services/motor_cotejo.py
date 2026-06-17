@@ -146,13 +146,12 @@ def resolver_checklist(
         # permiso_circulacion (matriz §2.1 dice permiso_circulacion, instructivo B.1 dice cti)
         base = ["cti", "modelo_620", "dni", "contrato_compraventa"]
 
-        # §5.1.E — Herencia: mortis causa — no hay compraventa; sustituye contrato por docs de sucesión
-        # PENDIENTE FASE 3: confirmar si herencia pura lleva modelo_620 (ITP) o solo modelo_650
-        # (Sucesiones). Fiscalmente son mutuamente excluyentes en el caso general, pero hay matices
-        # (consolidación de dominio, compensación en metálico, variaciones autonómicas).
-        # Ver matriz §12.2. Si se confirma que no lleva 620: añadir base.remove("modelo_620") aquí.
+        # §5.1.E — Herencia: mortis causa.
+        # CONFIRMADO cliente: herencia tributa por Sucesiones (modelo_650), NO por ITP (modelo_620).
+        # Se eliminan contrato_compraventa (B1) y modelo_620 (B10). Ver matriz §12.2.
         if subtipo == SubtipoTramite.HERENCIA:
             base.remove("contrato_compraventa")
+            base.remove("modelo_620")
             base += ["certificado_defuncion", "modelo_650", "declaracion_herederos", "anexo_650"]
 
         # §5.1.G — Empresa adquirente implícita en compra_empresa

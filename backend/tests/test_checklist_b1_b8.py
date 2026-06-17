@@ -25,11 +25,12 @@ def test_herencia_incluye_docs_sucesorios():
         assert doc in cl.requisitos, f"herencia debe incluir {doc}"
 
 
-def test_herencia_incluye_base_sin_contrato():
-    """Herencia conserva cti, modelo_620 y dni del base."""
+def test_herencia_incluye_base_sin_contrato_ni_620():
+    """B10 CONFIRMADO: herencia conserva cti y dni pero NO modelo_620 (ITP ≠ Sucesiones)."""
     cl = resolver_checklist(FamiliaTramite.TRANSFERENCIA, SubtipoTramite.HERENCIA)
-    for doc in ("cti", "modelo_620", "dni"):
+    for doc in ("cti", "dni"):
         assert doc in cl.requisitos, f"herencia debe incluir {doc}"
+    assert "modelo_620" not in cl.requisitos
 
 
 def test_compraventa_particular_sigue_incluyendo_contrato():
