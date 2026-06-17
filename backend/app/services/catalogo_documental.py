@@ -212,14 +212,20 @@ CONFUSIONES_FRECUENTES = {
 }
 
 
-# ── Checklist base plano (fallback; resolver_checklist() es la fuente viva) ──
+# ── Checklist base plano (DEPRECADO — usar resolver_checklist() de motor_cotejo.py) ──
+#
+# Este dict solo cubre compraventa_particular sin subtipos ni modificadores.
+# Se mantiene como fallback de evaluar_checklist() cuando no se pasan requisitos,
+# pero NO refleja herencia, compra_empresa, remolques, etc.
+# TODO Fase 3: eliminar este dict y forzar siempre requisitos explícitos.
 
 CHECKLIST_POR_TRAMITE: dict[TipoTramite, list[str]] = {
+    # PENDIENTE FASE 3: confirmar si el doc principal de transferencia es cti o permiso_circulacion
     TipoTramite.TRANSFERENCIA: [
-        "cti",
+        "cti",           # instructivo B.1 dice cti; matriz §2.1 dice permiso_circulacion
         "modelo_620",
         "dni",
-        "contrato_compraventa",
+        "contrato_compraventa",  # solo compraventa_particular — herencia no lo lleva (B1)
     ],
     TipoTramite.MATRICULACION: [
         "solicitud_matriculacion",
