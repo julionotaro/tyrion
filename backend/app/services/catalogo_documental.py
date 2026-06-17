@@ -78,16 +78,20 @@ def _init_campos_requeridos() -> dict:
         # bastidor: clave de cruce estable (matrícula puede cambiar)
         D.MODELO_620: ["importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"],
         D.DNI: ["nombre", "numero_documento"],
-        D.CONTRATO_COMPRAVENTA: ["transmitente", "adquirente", "matricula", "precio"],
-        D.FICHA_TECNICA: ["marca", "modelo", "bastidor"],
+        # B7: bastidor es clave de cruce estable (matrícula puede cambiar — instructivo C.1)
+        D.CONTRATO_COMPRAVENTA: ["transmitente", "adquirente", "matricula", "bastidor", "precio"],
+        # B4: potencia_kw añadida — campo P.2 de la ficha técnica, base de cálculo del IVTM (instructivo C.4 / matriz §9.4)
+        D.FICHA_TECNICA: ["marca", "modelo", "bastidor", "potencia_kw"],
         D.JUSTIFICANTE_PAGO: ["importe", "referencia"],
         D.CERTIFICADO_DEFUNCION: ["nombre_fallecido", "fecha_defuncion"],
         D.MANDATO_REPRESENTACION: ["representado", "representante"],
         D.MODELO_650: ["causante", "heredero", "importe"],
         D.ANEXO_650: ["bastidor", "valor_vehiculo"],
         D.DECLARACION_HEREDEROS: ["causante", "herederos"],
-        D.SOLICITUD_MATRICULACION: ["matricula", "titular"],
-        D.IVTM: ["matricula", "importe"],
+        # B6: bastidor añadido — cruce matriculación multi-doc (matriz §9.4)
+        D.SOLICITUD_MATRICULACION: ["matricula", "titular", "bastidor"],
+        # B5: bastidor y potencia_kw añadidos — base de cálculo del impuesto y cruce (matriz §9.4)
+        D.IVTM: ["matricula", "importe", "bastidor", "potencia_kw"],
         D.IMPUESTO_MATRICULACION: ["matricula", "importe"],
         D.DOCUMENTACION_EXTRANJERA: ["bastidor", "pais_origen"],
         D.ESCRITURA_PODER: ["poderdante", "apoderado"],

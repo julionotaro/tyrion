@@ -44,8 +44,9 @@ DATOS_COMPLETOS = {
     TipoDocumento.DNI: {
         "nombre": "Ana Martínez", "numero_documento": "12345678Z",
     },
+    # B4: potencia_kw añadida (campo P.2, base de cálculo IVTM — instructivo C.4 / matriz §9.4)
     TipoDocumento.FICHA_TECNICA: {
-        "marca": "Volkswagen", "modelo": "Golf", "bastidor": "WVW12345",
+        "marca": "Volkswagen", "modelo": "Golf", "bastidor": "WVW12345", "potencia_kw": "85",
     },
 }
 
