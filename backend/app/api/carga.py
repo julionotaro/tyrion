@@ -414,12 +414,12 @@ def _construir_tramite(
     ]
     avisos_pendientes = []
     if aviso_preparado:
-        avisos_pendientes.append({
-            "tipo": "AVISO_1",
-            "asunto": "Documentación pendiente",
-            "preparado_at": ahora,
-            "faltantes": faltantes or [],
-        })
+        for req in (faltantes or ["documentacion_pendiente"]):
+            avisos_pendientes.append({
+                "tipo": "AVISO_1",
+                "enviado_at": ahora,   # preparado, pendiente de envío real
+                "requisito": req,
+            })
 
     return {
         "id": tramite_id,
