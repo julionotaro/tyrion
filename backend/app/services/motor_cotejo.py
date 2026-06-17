@@ -142,8 +142,9 @@ def resolver_checklist(
 
     # ── Checklist base por familia ─────────────────────────────────────────────
     if familia == FamiliaTramite.TRANSFERENCIA:
-        # PENDIENTE FASE 3: confirmar si el doc principal de transferencia es cti o
-        # permiso_circulacion (matriz §2.1 dice permiso_circulacion, instructivo B.1 dice cti)
+        # CTI (Cambio de Titularidad) es el documento de ENTRADA para la transferencia.
+        # El permiso de circulación lo emite el Colegio DESPUÉS de completar el trámite.
+        # CONFIRMADO cliente (B11) — ver matriz §12.1 RESUELTA.
         base = ["cti", "modelo_620", "dni", "contrato_compraventa"]
 
         # §5.1.E — Herencia: mortis causa.
