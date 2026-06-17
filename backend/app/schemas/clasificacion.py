@@ -16,8 +16,7 @@ class ResultadoClasificacion(BaseModel):
     justificacion: str = ""
     # si el tipo declarado por el remitente NO coincide con lo detectado
     discrepancia_con_declarado: bool = False
-
-    @property
-    def requiere_validacion_humana(self) -> bool:
-        """Confianza baja -> marca para revisión del administrativo."""
-        return self.confianza_nivel == "BAJA"
+    # True si la confianza es BAJA o la extracción está incompleta
+    requiere_validacion_humana: bool = False
+    # campos que deberían haberse extraído y no aparecen
+    campos_faltantes: list[str] = Field(default_factory=list)

@@ -60,9 +60,10 @@ def test_nivel_desde_score(score, esperado):
 
 @pytest.mark.asyncio
 async def test_clasifica_permiso_con_confianza_alta(pdf_falso):
+    # permiso_circulacion requiere matricula, titular y bastidor → incluimos los tres
     clf = _clasificador_con_respuesta(
         '{"tipo_detectado": "permiso_circulacion", "confianza_score": 0.95, '
-        '"datos_extraidos": {"matricula": "1234ABC", "titular": "Juan Pérez"}, '
+        '"datos_extraidos": {"matricula": "1234ABC", "titular": "Juan Pérez", "bastidor": "WBA12345"}, '
         '"justificacion": "Encabezado Permiso de Circulación visible."}'
     )
     res = await clf.clasificar(pdf_falso)
@@ -150,9 +151,10 @@ async def test_tipo_invalido_degrada_a_desconocido(pdf_falso):
 
 @pytest.mark.asyncio
 async def test_score_fuera_de_rango_se_clampa(pdf_falso):
+    # dni requiere nombre y numero_documento — los incluimos para que el clamp funcione sin penalizar
     clf = _clasificador_con_respuesta(
         '{"tipo_detectado": "dni", "confianza_score": 1.7, '
-        '"datos_extraidos": {}, "justificacion": "x"}'
+        '"datos_extraidos": {"nombre": "Ana García", "numero_documento": "12345678A"}, "justificacion": "x"}'
     )
     res = await clf.clasificar(pdf_falso)
     assert res.confianza_score == 1.0

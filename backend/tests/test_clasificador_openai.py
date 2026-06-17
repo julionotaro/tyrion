@@ -20,12 +20,26 @@ from app.services.catalogo_documental import TipoDocumento
 PDF_MINIMO = b"%PDF-1.4 1 0 obj<</Type/Catalog>>stream\nendstream\nendobj"
 
 
-def _respuesta_openai(tipo: str, score: float = 0.90) -> MagicMock:
-    """Mock de respuesta de la API de OpenAI."""
+_DATOS_COMPLETOS = {
+    # datos completos por tipo para que no se dispare la penalización de extracción
+    "cti": {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345"},
+    "permiso_circulacion": {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345"},
+    "dni": {"nombre": "Ana García", "numero_documento": "12345678A"},
+    "modelo_620": {"importe": "350", "transmitente": "A", "adquirente": "B", "fecha_devengo": "2026-01-01"},
+}
+
+
+def _respuesta_openai(tipo: str, score: float = 0.90, datos: dict | None = None) -> MagicMock:
+    """Mock de respuesta de la API de OpenAI.
+
+    Si no se pasan datos, usa _DATOS_COMPLETOS para el tipo (evita penalización por extracción incompleta).
+    """
+    if datos is None:
+        datos = _DATOS_COMPLETOS.get(tipo, {"matricula": "1234ABC"})
     texto = json.dumps({
         "tipo_detectado": tipo,
         "confianza_score": score,
-        "datos_extraidos": {"matricula": "1234ABC"},
+        "datos_extraidos": datos,
         "justificacion": "Test",
     })
     msg = SimpleNamespace(content=texto)
@@ -33,11 +47,11 @@ def _respuesta_openai(tipo: str, score: float = 0.90) -> MagicMock:
     return SimpleNamespace(choices=[choice])
 
 
-def _cliente_mock(tipo: str, score: float = 0.90):
+def _cliente_mock(tipo: str, score: float = 0.90, datos: dict | None = None):
     cliente = MagicMock()
     cliente.chat = MagicMock()
     cliente.chat.completions = MagicMock()
-    cliente.chat.completions.create = AsyncMock(return_value=_respuesta_openai(tipo, score))
+    cliente.chat.completions.create = AsyncMock(return_value=_respuesta_openai(tipo, score, datos))
     return cliente
 
 

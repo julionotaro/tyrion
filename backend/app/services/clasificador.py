@@ -30,6 +30,7 @@ from app.services.catalogo_documental import (
     TipoDocumento,
     RASGOS_DISTINTIVOS,
     CONFUSIONES_FRECUENTES,
+    evaluar_completitud_extraccion,
 )
 
 logger = logging.getLogger(__name__)
@@ -230,6 +231,7 @@ class ClasificadorDocumental:
                 confianza_score=0.0,
                 confianza_nivel="BAJA",
                 justificacion="No se pudo interpretar la respuesta del clasificador.",
+                requiere_validacion_humana=True,
             )
 
         # Normalizar el tipo a un valor válido del enum
@@ -249,11 +251,26 @@ class ClasificadorDocumental:
             except ValueError:
                 discrepancia = False
 
+        datos_extraidos = data.get("datos_extraidos", {}) or {}
+        # Filtrar nulos explícitos que el modelo devuelve cuando no encuentra el campo
+        datos_extraidos = {k: v for k, v in datos_extraidos.items() if v is not None and v != ""}
+        justificacion = str(data.get("justificacion", ""))
+
+        completo, campos_faltantes = evaluar_completitud_extraccion(tipo, datos_extraidos)
+        if not completo:
+            score = min(score, 0.5)
+            justificacion += f" | Extracción incompleta: faltan {campos_faltantes}"
+
+        nivel = _nivel_desde_score(score)
+        requiere_validacion = nivel == "BAJA"
+
         return ResultadoClasificacion(
             tipo_detectado=tipo,
             confianza_score=score,
-            confianza_nivel=_nivel_desde_score(score),
-            datos_extraidos=data.get("datos_extraidos", {}) or {},
-            justificacion=str(data.get("justificacion", "")),
+            confianza_nivel=nivel,
+            datos_extraidos=datos_extraidos,
+            justificacion=justificacion,
             discrepancia_con_declarado=discrepancia,
+            requiere_validacion_humana=requiere_validacion,
+            campos_faltantes=campos_faltantes,
         )
