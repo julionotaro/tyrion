@@ -19,7 +19,7 @@ class TipoDocumento(str, Enum):
     # Documentos clásicos (sesión 1)
     PERMISO_CIRCULACION = "permiso_circulacion"
     MODELO_620 = "modelo_620"                     # ITP (Impuesto Transmisiones Patrimoniales)
-    CTI = "cti"                                    # Certificado de Características Técnicas / ITV
+    CTI = "cti"                                    # Cambio de Titularidad (formulario de solicitud de transferencia)
     DNI = "dni"
     CONTRATO_COMPRAVENTA = "contrato_compraventa"
     FICHA_TECNICA = "ficha_tecnica"
@@ -70,8 +70,8 @@ def _init_campos_requeridos() -> dict:
     """
     D = TipoDocumento
     return {
-        # PENDIENTE FASE 3: confirmar si el doc principal de transferencia es cti o
-        # permiso_circulacion (matriz §2.1 dice permiso_circulacion, instructivo B.1 dice cti)
+        # CTI (Cambio de Titularidad) — documento de entrada para transferencia.
+        # CONFIRMADO cliente (B11): permiso_circulacion es el documento de SALIDA, no de entrada.
         D.CTI: ["matricula", "titular", "bastidor", "cet"],
         D.PERMISO_CIRCULACION: ["matricula", "titular", "bastidor"],
         # cet: Código Electrónico de Transmisión — clave de cruce CTI↔620 (instructivo C.1 / matriz §9.2)
@@ -220,12 +220,12 @@ CONFUSIONES_FRECUENTES = {
 # TODO Fase 3: eliminar este dict y forzar siempre requisitos explícitos.
 
 CHECKLIST_POR_TRAMITE: dict[TipoTramite, list[str]] = {
-    # PENDIENTE FASE 3: confirmar si el doc principal de transferencia es cti o permiso_circulacion
+    # CONFIRMADO cliente (B11): CTI es el documento de entrada; permiso_circulacion es de salida.
     TipoTramite.TRANSFERENCIA: [
-        "cti",           # instructivo B.1 dice cti; matriz §2.1 dice permiso_circulacion
+        "cti",
         "modelo_620",
         "dni",
-        "contrato_compraventa",  # solo compraventa_particular — herencia no lo lleva (B1)
+        "contrato_compraventa",  # solo compraventa_particular — herencia no lo lleva (B1+B10)
     ],
     TipoTramite.MATRICULACION: [
         "solicitud_matriculacion",
@@ -256,8 +256,10 @@ RASGOS_DISTINTIVOS = {
         "datos de transmitente y adquirente. NO autoriza circulación."
     ),
     TipoDocumento.CTI: (
-        "Certificado de características técnicas / tarjeta ITV. Contiene datos "
-        "técnicos del vehículo: peso, dimensiones, emisiones, resultado de inspección."
+        "Formulario oficial DGT de Cambio de Titularidad. Solicita el cambio de titular "
+        "del vehículo. Contiene datos del transmitente, adquirente, vehículo (matrícula, "
+        "bastidor) y el CET (Código Electrónico de Transmisión). "
+        "Es el documento de ENTRADA de una transferencia; el permiso de circulación es la SALIDA."
     ),
     TipoDocumento.DNI: (
         "Documento Nacional de Identidad. Foto, nombre, número de DNI, fecha de nacimiento."

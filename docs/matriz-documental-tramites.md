@@ -43,14 +43,18 @@ Parámetro adicional `origen`:
 ## §2. Checklist base por familia
 
 ### 2.1 TRANSFERENCIA — base común
-- `permiso_circulacion`
+- `cti` (Cambio de Titularidad — formulario DGT de solicitud de transferencia; contiene CET)
 - `modelo_620` (ITP)
 - `dni` (de transmitente Y adquirente)
 - `contrato_compraventa`
 
-Subtipo `herencia` añade:
+> **CONFIRMADO cliente (B11, 17/06/2026):** el documento de entrada es el `cti` (Cambio de
+> Titularidad), NO el `permiso_circulacion`. El permiso de circulación es el documento de
+> SALIDA que emite DGT una vez completado el trámite. Ver §12.1 (RESUELTA).
+
+Subtipo `herencia` añade (y elimina `contrato_compraventa` y `modelo_620` — B1/B10):
 - `certificado_defuncion`
-- `modelo_650` (Impuesto Sucesiones)
+- `modelo_650` (Impuesto Sucesiones — tributa por Sucesiones, NO por ITP)
 - `declaracion_herederos` o `testamento`
 - `anexo_650` (relación de bienes)
 
@@ -298,22 +302,26 @@ Si bastidor no aparece en Anexo 650 → RECHAZADO
 
 ## §12. PENDIENTE DE DEFINIR CON CLIENTE (Fase 3)
 
-### §12.1 CTI vs. permiso_circulacion como documento principal de TRANSFERENCIA
+### §12.1 CTI vs. permiso_circulacion como documento principal de TRANSFERENCIA — ✅ RESUELTA
 
-**Divergencia detectada (análisis Bloque 2):**
+**CONFIRMADO cliente (B11, 17/06/2026):**
 
-| Fuente | Documento |
-|--------|-----------|
-| Matriz §2.1 (este documento) | `permiso_circulacion` en el checklist base |
-| Instructivo operativo B.1 | CTI (Cambio de Titularidad Completo) |
-| Flujo estandarizado §3 | CTI |
-| Código actual (`resolver_checklist`) | `cti` |
+El documento de entrada para la transferencia es el **`cti` (Cambio de Titularidad)** — el
+formulario oficial DGT que solicita el cambio de titular. Contiene datos de transmitente,
+adquirente, vehículo (matrícula, bastidor) y el CET (Código Electrónico de Transmisión).
 
-**Hipótesis:** el instructivo B.1 y el flujo estandarizado fueron escritos tras la sesión 1 y reflejan la práctica real de la oficina (el CTI es el documento que llega de DGT y contiene el CET). La matriz §2.1 quedó sin actualizar.
+El `permiso_circulacion` es el documento de **SALIDA**: lo emite DGT una vez completado
+y presentado el expediente. La gestoría lo entrega al nuevo titular al cerrar el trámite.
 
-**Acción requerida:** confirmar con el administrativo en Fase 3 cuál de los dos documentos es el que físicamente reciben y exigen para dar por válido el requisito principal de la transferencia.
+| Fuente | Documento | Estado |
+|--------|-----------|--------|
+| Matriz §2.1 (este documento) | `cti` | ✅ Actualizado |
+| Instructivo operativo B.1 | CTI | ✅ Correcto |
+| Flujo estandarizado §3 | CTI | ✅ Correcto |
+| Código `resolver_checklist` | `cti` | ✅ Correcto |
 
-**Impacto en código:** si la respuesta es `permiso_circulacion`, cambiar la línea marcada con `# PENDIENTE FASE 3` en `motor_cotejo.py` (resolver_checklist) y en `catalogo_documental.py` (CHECKLIST_POR_TRAMITE). Si la respuesta confirma CTI, actualizar §2.1 de esta matriz.
+**Impacto aplicado:** §2.1 actualizado; `catalogo_documental.py` y `motor_cotejo.py` ya
+reflejan `cti` como documento de entrada.
 
 ### §12.2 modelo_620 (ITP) en transferencia por herencia — posible incompatibilidad fiscal
 
