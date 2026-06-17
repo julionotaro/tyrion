@@ -314,3 +314,20 @@ Si bastidor no aparece en Anexo 650 → RECHAZADO
 **Acción requerida:** confirmar con el administrativo en Fase 3 cuál de los dos documentos es el que físicamente reciben y exigen para dar por válido el requisito principal de la transferencia.
 
 **Impacto en código:** si la respuesta es `permiso_circulacion`, cambiar la línea marcada con `# PENDIENTE FASE 3` en `motor_cotejo.py` (resolver_checklist) y en `catalogo_documental.py` (CHECKLIST_POR_TRAMITE). Si la respuesta confirma CTI, actualizar §2.1 de esta matriz.
+
+### §12.2 modelo_620 (ITP) en transferencia por herencia — posible incompatibilidad fiscal
+
+**Situación:** el checklist de herencia hereda `modelo_620` del base de TRANSFERENCIA y además añade `modelo_650` (Impuesto de Sucesiones). B1 eliminó `contrato_compraventa` (corrección correcta), pero dejó `modelo_620` — corrección parcial.
+
+**Problema fiscal:** una transmisión mortis causa tributa por el Impuesto de Sucesiones y Donaciones (`modelo_650`), **no** por el Impuesto de Transmisiones Patrimoniales (`modelo_620`). Ambos son mutuamente excluyentes en el caso general: no puede haber ITP en una herencia pura porque no existe "transmisión onerosa".
+
+**Síntoma en Tyrion:** los trámites de herencia generan `AVISO_1 · modelo_620` pidiendo a la gestoría un impuesto que en sucesión pura no existe, lo que produce falsos positivos en el checklist.
+
+**Por qué no se elimina aún:** existen matices que requieren confirmación con el cliente:
+- Consolidación de dominio (cuando el causante tenía usufructo): puede requerir tanto 650 como 620.
+- Adjudicaciones con compensación en metálico entre coherederos: la parte compensada puede tributar por ITP.
+- Variaciones autonómicas: algunas comunidades autónomas tienen modelos propios o procedimientos distintos.
+
+**Acción Fase 3:** confirmar con el administrativo si en los trámites de herencia que gestionan se presenta `modelo_620`, solo `modelo_650`, o ambos según el caso. Hasta entonces, `modelo_620` permanece en el checklist de herencia como precaución.
+
+**Impacto en código:** la regla `§5.1.E` de `resolver_checklist()` en `motor_cotejo.py` está marcada con `# PENDIENTE FASE 3`. Si se confirma que herencia pura no lleva 620, añadir `base.remove("modelo_620")` junto al `base.remove("contrato_compraventa")` existente.
