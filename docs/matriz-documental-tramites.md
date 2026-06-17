@@ -339,3 +339,38 @@ reflejan `cti` como documento de entrada.
 **Acción Fase 3:** confirmar con el administrativo si en los trámites de herencia que gestionan se presenta `modelo_620`, solo `modelo_650`, o ambos según el caso. Hasta entonces, `modelo_620` permanece en el checklist de herencia como precaución.
 
 **Impacto en código:** la regla `§5.1.E` de `resolver_checklist()` en `motor_cotejo.py` está marcada con `# PENDIENTE FASE 3`. Si se confirma que herencia pura no lleva 620, añadir `base.remove("modelo_620")` junto al `base.remove("contrato_compraventa")` existente.
+
+---
+
+## §13. DEUDA TÉCNICA — Capa 4 (Persistencia de trámites en DB)
+
+### §13.1 Trámites en memoria — riesgo de huérfanos tras reinicio
+
+**Situación (Capa 1+2, implementado 17/06/2026):**
+
+Los trámites creados por `carga.py` (carga manual) y `worker_email.py` (ingesta email)
+se guardan en `registro_tramites` — un dict en memoria del proceso.
+
+El pipeline escribe en PostgreSQL:
+- `emails_procesados` — registro de dedup por Message-ID (persiste entre reinicios)
+- `mensajes_salientes` — avisos AVISO_1 preparados (persisten entre reinicios)
+
+**Riesgo concreto:** si el servidor reinicia, los registros de `emails_procesados` y
+`mensajes_salientes` en BD apuntan a un `tramite_id` que ya no existe en memoria.
+Consecuencias:
+- El email cuenta como "ya visto" → nunca se reintenta → el trámite desaparece
+- Los avisos preparados quedan huérfanos en `mensajes_salientes` → no tienen contexto
+
+**Solución pendiente (Capa 4):**
+
+1. `carga.py`: en lugar de escribir en `registro_tramites`, insertar en tabla `tramites` de PostgreSQL
+   (requiere resolver `gestoria_id` por email, insertar documentos en `documento_tramite`).
+2. `worker_email.py`: ídem — crear tramite en `tramites` antes de llamar a `pipeline.procesar_email`.
+3. `control.py._tramites_fuente()`: leer solo de PostgreSQL una vez que carga y email escriben allí.
+4. `registro_tramites.py`: puede deprecarse o quedar solo para sesiones de carga en vuelo.
+
+**Archivos clave a modificar en Capa 4:**
+- `backend/app/api/carga.py`
+- `backend/app/services/worker_email.py` (comentario `# DEUDA CAPA 4` en línea ~118)
+- `backend/app/api/control.py` (`_tramites_fuente`)
+- `backend/app/services/registro_tramites.py` (deprecar trámites, mantener sesiones)
