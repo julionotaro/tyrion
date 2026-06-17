@@ -22,10 +22,13 @@ PDF_MINIMO = b"%PDF-1.4 1 0 obj<</Type/Catalog>>stream\nendstream\nendobj"
 
 _DATOS_COMPLETOS = {
     # datos completos por tipo para que no se dispare la penalización de extracción
-    "cti": {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345"},
+    # B2: cet añadido al CTI (clave de cruce CTI↔620, instructivo C.1 / matriz §9.2)
+    "cti": {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345", "cet": "CET-001"},
     "permiso_circulacion": {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345"},
     "dni": {"nombre": "Ana García", "numero_documento": "12345678A"},
-    "modelo_620": {"importe": "350", "transmitente": "A", "adquirente": "B", "fecha_devengo": "2026-01-01"},
+    # B3: cet + bastidor añadidos al modelo_620
+    "modelo_620": {"importe": "350", "transmitente": "A", "adquirente": "B", "fecha_devengo": "2026-01-01",
+                   "cet": "CET-001", "bastidor": "WBA12345"},
 }
 
 

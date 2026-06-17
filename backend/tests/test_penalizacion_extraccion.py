@@ -24,8 +24,9 @@ def _respuesta_openai(tipo: str, score: float, datos: dict) -> SimpleNamespace:
 
 
 def test_openai_con_todos_los_campos_confianza_intacta():
-    """CTI con todos los campos → confianza original sin penalizar."""
-    datos = {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345"}
+    """CTI con todos los campos (incluido cet — B2) → confianza original sin penalizar."""
+    # B2: cet es campo requerido del CTI (clave de cruce CTI↔620, instructivo C.1)
+    datos = {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345", "cet": "CET-001"}
     resultado = _parsear_openai(json.dumps({
         "tipo_detectado": "cti",
         "confianza_score": 0.93,

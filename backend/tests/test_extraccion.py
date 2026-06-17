@@ -27,12 +27,16 @@ def _payload(tipo: str, score: float, datos: dict) -> str:
 # ── Fixtures de datos completos por familia ────────────────────────────────────
 
 DATOS_COMPLETOS = {
+    # B2: cet añadido — clave de cruce CTI↔620 (instructivo C.1 / matriz §9.2)
     TipoDocumento.CTI: {
         "matricula": "1234 ABC", "titular": "Luis Fernández", "bastidor": "WVW12345",
+        "cet": "CET-20260601-001",
     },
+    # B3: cet + bastidor añadidos al modelo_620 (mismo cruce)
     TipoDocumento.MODELO_620: {
         "importe": "487.50", "transmitente": "Pedro López",
         "adquirente": "María García", "fecha_devengo": "2026-06-01",
+        "cet": "CET-20260601-001", "bastidor": "WVW12345",
     },
     TipoDocumento.ANEXO_650: {
         "bastidor": "WVW12345", "valor_vehiculo": "12000",
@@ -60,7 +64,8 @@ class TestCTI:
         assert resultado.confianza_score <= 0.5
         assert resultado.requiere_validacion_humana is True
         faltantes = set(resultado.campos_faltantes)
-        assert {"matricula", "titular", "bastidor"}.issubset(faltantes)
+        # B2: cet es campo requerido del CTI (clave de cruce con modelo_620)
+        assert {"matricula", "titular", "bastidor", "cet"}.issubset(faltantes)
 
     def test_campos_parciales_penaliza(self):
         datos = {"matricula": "1234 ABC"}  # falta titular y bastidor
@@ -81,7 +86,8 @@ class TestModelo620:
         resultado = _parsear_respuesta(_payload("modelo_620", 0.88, {}), None)
         assert resultado.confianza_score <= 0.5
         faltantes = set(resultado.campos_faltantes)
-        assert {"importe", "transmitente", "adquirente", "fecha_devengo"}.issubset(faltantes)
+        # B3: cet y bastidor añadidos (cruce con CTI — matriz §9.2)
+        assert {"importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"}.issubset(faltantes)
 
     def test_solo_importe_penaliza(self):
         resultado = _parsear_respuesta(_payload("modelo_620", 0.88, {"importe": "350"}), None)

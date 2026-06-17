@@ -70,9 +70,13 @@ def _init_campos_requeridos() -> dict:
     """
     D = TipoDocumento
     return {
-        D.CTI: ["matricula", "titular", "bastidor"],
+        # PENDIENTE FASE 3: confirmar si el doc principal de transferencia es cti o
+        # permiso_circulacion (matriz §2.1 dice permiso_circulacion, instructivo B.1 dice cti)
+        D.CTI: ["matricula", "titular", "bastidor", "cet"],
         D.PERMISO_CIRCULACION: ["matricula", "titular", "bastidor"],
-        D.MODELO_620: ["importe", "transmitente", "adquirente", "fecha_devengo"],
+        # cet: Código Electrónico de Transmisión — clave de cruce CTI↔620 (instructivo C.1 / matriz §9.2)
+        # bastidor: clave de cruce estable (matrícula puede cambiar)
+        D.MODELO_620: ["importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"],
         D.DNI: ["nombre", "numero_documento"],
         D.CONTRATO_COMPRAVENTA: ["transmitente", "adquirente", "matricula", "precio"],
         D.FICHA_TECNICA: ["marca", "modelo", "bastidor"],

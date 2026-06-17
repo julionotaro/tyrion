@@ -13,19 +13,20 @@ def test_todos_los_tipos_tienen_entrada():
 
 
 def test_helper_campos_requeridos():
-    assert campos_requeridos(TipoDocumento.CTI) == ["matricula", "titular", "bastidor"]
+    # cet añadido en B2: clave de cruce CTI↔620 (instructivo C.1 / matriz §9.2)
+    assert campos_requeridos(TipoDocumento.CTI) == ["matricula", "titular", "bastidor", "cet"]
     assert campos_requeridos(TipoDocumento.DESCONOCIDO) == []
 
 
 def test_evaluar_completo():
-    datos = {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345"}
+    datos = {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345", "cet": "CET123"}
     completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, datos)
     assert completo is True
     assert faltantes == []
 
 
 def test_evaluar_incompleto():
-    datos = {"matricula": "1234ABC"}  # faltan titular y bastidor
+    datos = {"matricula": "1234ABC"}  # faltan titular, bastidor y cet
     completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, datos)
     assert completo is False
     assert "titular" in faltantes
@@ -35,7 +36,8 @@ def test_evaluar_incompleto():
 def test_evaluar_vacio():
     completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, {})
     assert completo is False
-    assert set(faltantes) == {"matricula", "titular", "bastidor"}
+    # B2: cet ahora es campo requerido del CTI
+    assert set(faltantes) == {"matricula", "titular", "bastidor", "cet"}
 
 
 def test_evaluar_tipo_sin_campos():
