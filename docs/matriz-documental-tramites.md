@@ -293,3 +293,24 @@ Si bastidor no aparece en Anexo 650 → RECHAZADO
 - [ ] Integración `resolver_checklist()` con tabla `requisitos_tramite` en BD
 - [ ] Integración SMTP real para avisos
 - [ ] Campo `no_telematico` en tabla `tramites` para históricos
+
+---
+
+## §12. PENDIENTE DE DEFINIR CON CLIENTE (Fase 3)
+
+### §12.1 CTI vs. permiso_circulacion como documento principal de TRANSFERENCIA
+
+**Divergencia detectada (análisis Bloque 2):**
+
+| Fuente | Documento |
+|--------|-----------|
+| Matriz §2.1 (este documento) | `permiso_circulacion` en el checklist base |
+| Instructivo operativo B.1 | CTI (Cambio de Titularidad Completo) |
+| Flujo estandarizado §3 | CTI |
+| Código actual (`resolver_checklist`) | `cti` |
+
+**Hipótesis:** el instructivo B.1 y el flujo estandarizado fueron escritos tras la sesión 1 y reflejan la práctica real de la oficina (el CTI es el documento que llega de DGT y contiene el CET). La matriz §2.1 quedó sin actualizar.
+
+**Acción requerida:** confirmar con el administrativo en Fase 3 cuál de los dos documentos es el que físicamente reciben y exigen para dar por válido el requisito principal de la transferencia.
+
+**Impacto en código:** si la respuesta es `permiso_circulacion`, cambiar la línea marcada con `# PENDIENTE FASE 3` en `motor_cotejo.py` (resolver_checklist) y en `catalogo_documental.py` (CHECKLIST_POR_TRAMITE). Si la respuesta confirma CTI, actualizar §2.1 de esta matriz.
