@@ -55,6 +55,76 @@ class TipoDocumento(str, Enum):
     DESCONOCIDO = "desconocido"
 
 
+# ── Campos mínimos de extracción por tipo de documento ────────────────────────
+
+CAMPOS_REQUERIDOS: dict["TipoDocumento", list[str]] = {}  # poblado tras definir el enum
+
+
+def _init_campos_requeridos() -> dict:
+    """Define los campos mínimos extraíbles obligatorios por tipo documental.
+
+    Principio: solo campos que el clasificador PUEDE extraer del documento en sí
+    y que son necesarios para el cotejo posterior. Para documentos puramente
+    administrativos o de contexto (hoja_caja, relaciones, desconocido) se usa []
+    porque no contienen datos estructurados que cotejemos por campo.
+    """
+    D = TipoDocumento
+    return {
+        D.CTI: ["matricula", "titular", "bastidor"],
+        D.PERMISO_CIRCULACION: ["matricula", "titular", "bastidor"],
+        D.MODELO_620: ["importe", "transmitente", "adquirente", "fecha_devengo"],
+        D.DNI: ["nombre", "numero_documento"],
+        D.CONTRATO_COMPRAVENTA: ["transmitente", "adquirente", "matricula", "precio"],
+        D.FICHA_TECNICA: ["marca", "modelo", "bastidor"],
+        D.JUSTIFICANTE_PAGO: ["importe", "referencia"],
+        D.CERTIFICADO_DEFUNCION: ["nombre_fallecido", "fecha_defuncion"],
+        D.MANDATO_REPRESENTACION: ["representado", "representante"],
+        D.MODELO_650: ["causante", "heredero", "importe"],
+        D.ANEXO_650: ["bastidor", "valor_vehiculo"],
+        D.DECLARACION_HEREDEROS: ["causante", "herederos"],
+        D.SOLICITUD_MATRICULACION: ["matricula", "titular"],
+        D.IVTM: ["matricula", "importe"],
+        D.IMPUESTO_MATRICULACION: ["matricula", "importe"],
+        D.DOCUMENTACION_EXTRANJERA: ["bastidor", "pais_origen"],
+        D.ESCRITURA_PODER: ["poderdante", "apoderado"],
+        D.CIF: ["nombre_empresa", "numero_cif"],
+        D.SOLICITUD_BAJA: ["matricula", "titular"],
+        D.SOLICITUD_DUPLICADO: ["matricula", "titular"],
+        D.JUSTIFICANTE_DOMICILIO: ["titular", "domicilio"],
+        D.CARTILLA_AGRICOLA: ["titular", "matricula"],
+        D.CERTIFICADO_HOMOLOGACION_ELECTRICO: ["bastidor", "homologacion"],
+        # Documentos sin campos estructurados extraíbles para cotejo:
+        D.RELACION_TRANSMISIONES: [],    # listado interno de gestoría, no tiene campos cotejeables
+        D.RELACION_MATRICULACIONES: [],  # ídem
+        D.HOJA_CAJA: [],                 # documento contable interno, no se coteja por campos
+        D.DESCONOCIDO: [],               # tipo no reconocido, sin campos definidos
+    }
+
+
+def campos_requeridos(tipo: "TipoDocumento") -> list[str]:
+    """Devuelve los campos mínimos de extracción para el tipo dado."""
+    return CAMPOS_REQUERIDOS.get(tipo, [])
+
+
+def evaluar_completitud_extraccion(
+    tipo: "TipoDocumento",
+    datos_extraidos: dict,
+) -> tuple[bool, list[str]]:
+    """Devuelve (esta_completo, campos_faltantes) para el tipo y los datos dados.
+
+    Un campo se considera presente si existe en datos_extraidos con un valor
+    no nulo y no vacío.
+    """
+    requeridos = campos_requeridos(tipo)
+    if not requeridos:
+        return True, []
+    faltantes = [
+        campo for campo in requeridos
+        if not datos_extraidos.get(campo)
+    ]
+    return len(faltantes) == 0, faltantes
+
+
 # ── Familias de trámite ────────────────────────────────────────────────────────
 
 class FamiliaTramite(str, Enum):
@@ -251,3 +321,6 @@ RASGOS_DISTINTIVOS = {
         "Certificado de homologación de vehículo eléctrico para placas verdes."
     ),
 }
+
+# Inicializar aquí, después de que TipoDocumento esté completamente definido
+CAMPOS_REQUERIDOS.update(_init_campos_requeridos())
