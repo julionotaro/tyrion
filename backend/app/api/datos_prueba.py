@@ -312,6 +312,16 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
              "actor": "tyrion"},
         ],
         "avisos_pendientes": [],
+        "verificaciones": [
+            {"campo": "matricula", "ok": True,
+             "descripcion": "Matrícula 5042 HZM coincide en CTI, declaración y anexo_650"},
+            {"campo": "dni_causante", "ok": True,
+             "descripcion": "DNI causante 12345678A coincide en certificado_defuncion y modelo_650"},
+            {"campo": "dni_heredero", "ok": True,
+             "descripcion": "DNI heredero 87654321B coincide en declaración y modelo_650 (sujeto_pasivo)"},
+            {"campo": "bastidor", "ok": True,
+             "descripcion": "Bastidor JYA5J09200002507G presente en anexo_650"},
+        ],
     },
     {
         "id": "t-004",

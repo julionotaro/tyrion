@@ -39,6 +39,7 @@ router = APIRouter(prefix="/api", tags=["control"])
 class TramiteResumen(BaseModel):
     id: str
     tipo: str
+    subtipo: str | None = None
     matricula: str | None
     bastidor: str | None
     gestoria: str
@@ -47,11 +48,15 @@ class TramiteResumen(BaseModel):
     fecha_entrada: str
     alerta: bool
     num_docs: int
+    asunto_email: str | None = None
+    documentos_faltantes: list[str] = []
+    avisos_pendientes: list[dict] = []
 
 
 class TramiteDetalle(BaseModel):
     id: str
     tipo: str
+    subtipo: str | None = None
     matricula: str | None
     bastidor: str | None
     gestoria: str
@@ -64,6 +69,7 @@ class TramiteDetalle(BaseModel):
     documentos: list[dict[str, Any]]
     historial: list[dict[str, Any]]
     avisos_pendientes: list[dict[str, Any]]
+    verificaciones: list[dict[str, Any]] = []
 
 
 class StatsResponse(BaseModel):
@@ -112,6 +118,7 @@ def _a_resumen(t: dict[str, Any]) -> TramiteResumen:
     return TramiteResumen(
         id=t["id"],
         tipo=t["tipo"],
+        subtipo=t.get("subtipo"),
         matricula=t.get("matricula"),
         bastidor=t.get("bastidor"),
         gestoria=t["gestoria"],
@@ -120,6 +127,9 @@ def _a_resumen(t: dict[str, Any]) -> TramiteResumen:
         fecha_entrada=t["fecha_entrada"],
         alerta=t.get("alerta", False),
         num_docs=len(t.get("documentos", [])),
+        asunto_email=t.get("asunto_email"),
+        documentos_faltantes=t.get("documentos_faltantes", []),
+        avisos_pendientes=t.get("avisos_pendientes", []),
     )
 
 
@@ -160,6 +170,7 @@ def detalle_tramite(
         return TramiteDetalle(
             id=manual["id"],
             tipo=manual["tipo"],
+            subtipo=manual.get("subtipo"),
             matricula=manual.get("matricula"),
             bastidor=manual.get("bastidor"),
             gestoria=manual["gestoria"],
@@ -172,6 +183,7 @@ def detalle_tramite(
             documentos=manual.get("documentos", []),
             historial=manual.get("historial", []),
             avisos_pendientes=manual.get("avisos_pendientes", []),
+            verificaciones=manual.get("verificaciones", []),
         )
 
     if usar_prueba:
@@ -205,6 +217,7 @@ def detalle_tramite(
     return TramiteDetalle(
         id=tramite["id"],
         tipo=tramite["tipo"],
+        subtipo=tramite.get("subtipo"),
         matricula=tramite.get("matricula"),
         bastidor=tramite.get("bastidor"),
         gestoria=tramite["gestoria"],
@@ -217,6 +230,7 @@ def detalle_tramite(
         documentos=documentos,
         historial=historial,
         avisos_pendientes=avisos_pendientes,
+        verificaciones=tramite.get("verificaciones", []),
     )
 
 
