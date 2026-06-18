@@ -19,24 +19,24 @@ def test_herencia_no_incluye_contrato_compraventa():
 
 
 def test_herencia_incluye_docs_sucesorios():
-    """Matriz §2.1 herencia: deben aparecer los cuatro documentos de sucesión."""
+    """Sesión 13: checklist herencia confirmado — decl_responsable + modelo_650 + anexo_650."""
     cl = resolver_checklist(FamiliaTramite.TRANSFERENCIA, SubtipoTramite.HERENCIA)
-    for doc in ("certificado_defuncion", "modelo_650", "declaracion_herederos", "anexo_650"):
+    for doc in ("declaracion_responsable_fallecimiento", "modelo_650", "anexo_650"):
         assert doc in cl.requisitos, f"herencia debe incluir {doc}"
 
 
 def test_herencia_incluye_base_sin_contrato_ni_620():
-    """B10 CONFIRMADO: herencia conserva cti y dni pero NO modelo_620 (ITP ≠ Sucesiones)."""
+    """Sesión 13: herencia NO lleva CTI, DNI, contrato ni modelo_620 en el checklist de cotejo."""
     cl = resolver_checklist(FamiliaTramite.TRANSFERENCIA, SubtipoTramite.HERENCIA)
-    for doc in ("cti", "dni"):
-        assert doc in cl.requisitos, f"herencia debe incluir {doc}"
-    assert "modelo_620" not in cl.requisitos
+    for doc in ("contrato_compraventa", "modelo_620", "cti", "dni"):
+        assert doc not in cl.requisitos, f"herencia NO debe incluir {doc}"
 
 
-def test_compraventa_particular_sigue_incluyendo_contrato():
-    """Compraventa particular mantiene contrato_compraventa."""
+def test_compraventa_particular_no_incluye_docs_herencia():
+    """Compraventa particular: sin documentos de herencia."""
     cl = resolver_checklist(FamiliaTramite.TRANSFERENCIA, SubtipoTramite.COMPRAVENTA_PARTICULAR)
-    assert "contrato_compraventa" in cl.requisitos
+    assert "declaracion_responsable_fallecimiento" not in cl.requisitos
+    assert "modelo_650" not in cl.requisitos
 
 
 # ── B8: compra_empresa implica naturaleza empresa ──────────────────────────────

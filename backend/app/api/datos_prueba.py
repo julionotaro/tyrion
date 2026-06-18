@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 # Hora base para que los datos de prueba tengan tiempos relativos realistas
-_AHORA = datetime(2026, 6, 15, 9, 0, 0)
+_AHORA = datetime.now().replace(second=0, microsecond=0)
 
 
 def _hace(minutos: int) -> str:
@@ -43,19 +43,19 @@ DOCUMENTOS_PRUEBA: dict[str, dict[str, Any]] = {
     "doc-002": {
         "id": "doc-002",
         "tramite_id": "t-002",
-        "nombre": "permiso.pdf",
-        "tipo_detectado": "permiso_circulacion",
+        "nombre": "cti.pdf",
+        "tipo_detectado": "cti",
         "validez": "VALIDO",
         "confianza": "ALTA",
         "confianza_score": 0.95,
         "tiene_archivo": False,
         "campos_extraidos": [
-            {"campo": "matricula",    "valor": "5678 DEF",   "estado": "valido"},
-            {"campo": "titular",      "valor": "Ana Martín", "estado": "valido"},
-            {"campo": "marca_modelo", "valor": "VW Golf",    "estado": "valido"},
-            {"campo": "fecha_matriculacion", "valor": "02/07/2021", "estado": "valido"},
+            {"campo": "matricula", "valor": "5678 DEF",   "estado": "valido"},
+            {"campo": "titular",   "valor": "Ana Martín", "estado": "valido"},
+            {"campo": "bastidor",  "valor": "WVWZZZ1KZAW123456", "estado": "valido"},
+            {"campo": "cet",       "valor": "CET-2026-002",      "estado": "valido"},
         ],
-        "justificacion": "Documento DGT correcto. Todos los campos coinciden con el trámite.",
+        "justificacion": "CTI (Cambio de Titularidad) correcto. Todos los campos presentes.",
     },
     "doc-003": {
         "id": "doc-003",
@@ -75,60 +75,60 @@ DOCUMENTOS_PRUEBA: dict[str, dict[str, Any]] = {
         ],
         "justificacion": "Formulario 620 con todos los campos de liquidación presentes.",
     },
-    "doc-004": {
-        "id": "doc-004",
-        "tramite_id": "t-002",
-        "nombre": "dni_comprador.pdf",
-        "tipo_detectado": "dni",
-        "validez": "VALIDO",
-        "confianza": "ALTA",
-        "confianza_score": 0.98,
-        "tiene_archivo": False,
-        "campos_extraidos": [
-            {"campo": "nombre",    "valor": "Ana Martín López", "estado": "valido"},
-            {"campo": "dni",       "valor": "12345678A",        "estado": "valido"},
-            {"campo": "caducidad", "valor": "01/01/2030",       "estado": "valido"},
-        ],
-        "justificacion": "DNI vigente, datos legibles.",
-    },
     "doc-005": {
         "id": "doc-005",
         "tramite_id": "t-003",
-        # Caso de error: envían CTI en lugar de permiso_circulacion
-        "nombre": "cti.pdf",
-        "tipo_detectado": "cti",
-        "validez": "EVIDENCIA_COMPATIBLE",
+        "nombre": "decl_responsable.pdf",
+        "tipo_detectado": "declaracion_responsable_fallecimiento",
+        "validez": "VALIDO",
+        "confianza": "ALTA",
+        "confianza_score": 0.95,
+        "tiene_archivo": False,
+        "campos_extraidos": [
+            {"campo": "nombre",    "valor": "Carlos Ruiz Fernández", "estado": "valido"},
+            {"campo": "dni",       "valor": "87654321B",              "estado": "valido"},
+            {"campo": "matricula", "valor": "9012 GHI",               "estado": "valido"},
+        ],
+        "justificacion": (
+            "Declaración responsable de persona física para cambio de titularidad por fallecimiento. "
+            "Nombre, DNI y matrícula presentes y legibles. Documento VÁLIDO."
+        ),
+    },
+    "doc-005b": {
+        "id": "doc-005b",
+        "tramite_id": "t-003",
+        "nombre": "modelo_650.pdf",
+        "tipo_detectado": "modelo_650",
+        "validez": "VALIDO",
         "confianza": "ALTA",
         "confianza_score": 0.93,
         "tiene_archivo": False,
         "campos_extraidos": [
-            {"campo": "matricula",   "valor": "9012 GHI",  "estado": "valido"},
-            {"campo": "resultado_itv","valor": "FAVORABLE", "estado": "valido"},
-            {"campo": "fecha_itv",   "valor": "10/03/2026", "estado": "valido"},
-            # Campo que falta respecto al permiso requerido:
-            {"campo": "titular",     "valor": "(no visible en CTI)", "estado": "evidencia"},
+            {"campo": "causante", "valor": "Pedro Ruiz García",     "estado": "valido"},
+            {"campo": "heredero", "valor": "Carlos Ruiz Fernández", "estado": "valido"},
+            {"campo": "importe",  "valor": "1.250 €",               "estado": "valido"},
         ],
-        "justificacion": (
-            "Se detectó CTI/ficha ITV, no el Permiso de Circulación requerido. "
-            "Son documentos relacionados pero no intercambiables (regla de oro). "
-            "Se solicitó a la gestoría el documento correcto."
-        ),
+        "justificacion": "Modelo 650 (Impuesto Sucesiones) con causante y heredero identificados.",
     },
-    "doc-006": {
-        "id": "doc-006",
+    "doc-005c": {
+        "id": "doc-005c",
         "tramite_id": "t-003",
-        "nombre": "dni.pdf",
-        "tipo_detectado": "dni",
-        "validez": "VALIDO",
+        "nombre": "anexo_650.pdf",
+        "tipo_detectado": "anexo_650",
+        "validez": "EVIDENCIA_COMPATIBLE",
         "confianza": "ALTA",
-        "confianza_score": 0.96,
+        "confianza_score": 0.91,
         "tiene_archivo": False,
         "campos_extraidos": [
-            {"campo": "nombre",    "valor": "Carlos Ruiz", "estado": "valido"},
-            {"campo": "dni",       "valor": "87654321B",   "estado": "valido"},
-            {"campo": "caducidad", "valor": "15/08/2028",  "estado": "valido"},
+            {"campo": "bastidor",       "valor": "VS6RFD000X9999", "estado": "rechazado"},
+            {"campo": "valor_vehiculo", "valor": "12.000 €",       "estado": "valido"},
         ],
-        "justificacion": "DNI correcto y vigente.",
+        "justificacion": (
+            "Anexo 650 recibido. ALERTA: el bastidor en el Anexo (VS6RFD000X9999) "
+            "no coincide con el bastidor del trámite (VS6RFD000X1234). "
+            "Diferencia en últimos 4 dígitos: 9999 ≠ 1234. "
+            "Se ha solicitado corrección a la gestoría."
+        ),
     },
     "doc-007": {
         "id": "doc-007",
@@ -213,51 +213,53 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(45),
         "alerta": False,
         "documentos": [
-            {"id": "doc-002", "nombre": "permiso.pdf",
-             "tipo_detectado": "permiso_circulacion",
+            {"id": "doc-002", "nombre": "cti.pdf",
+             "tipo_detectado": "cti",
              "validez": "VALIDO", "confianza": "ALTA"},
             {"id": "doc-003", "nombre": "modelo620.pdf",
              "tipo_detectado": "modelo_620",
              "validez": "VALIDO", "confianza": "ALTA"},
-            {"id": "doc-004", "nombre": "dni_comprador.pdf",
-             "tipo_detectado": "dni",
-             "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
             {"momento": _hace(45), "evento": "Email recibido", "actor": "tyrion"},
-            {"momento": _hace(44), "evento": "3 documentos clasificados", "actor": "tyrion"},
+            {"momento": _hace(44), "evento": "2 documentos clasificados (versión acotada)",
+             "actor": "tyrion"},
         ],
         "avisos_pendientes": [],
     },
     {
         "id": "t-003",
         "tipo": "TRANSFERENCIA",
+        "subtipo": "herencia",
         "matricula": "9012 GHI",
-        "bastidor": None,
+        "bastidor": "VS6RFD000X1234",
         "gestoria": "Gestoria Ruiz",
         "gestoria_email": "ruiz@gestorias.es",
         "estado": "pendiente_gestoria",
         "fecha_entrada": _hace(90),
         "alerta": True,
         "documentos": [
-            {"id": "doc-005", "nombre": "cti.pdf",
-             "tipo_detectado": "cti",
-             "validez": "EVIDENCIA_COMPATIBLE", "confianza": "ALTA"},
-            {"id": "doc-006", "nombre": "dni.pdf",
-             "tipo_detectado": "dni",
+            {"id": "doc-005",  "nombre": "decl_responsable.pdf",
+             "tipo_detectado": "declaracion_responsable_fallecimiento",
              "validez": "VALIDO", "confianza": "ALTA"},
+            {"id": "doc-005b", "nombre": "modelo_650.pdf",
+             "tipo_detectado": "modelo_650",
+             "validez": "VALIDO", "confianza": "ALTA"},
+            {"id": "doc-005c", "nombre": "anexo_650.pdf",
+             "tipo_detectado": "anexo_650",
+             "validez": "EVIDENCIA_COMPATIBLE", "confianza": "ALTA"},
         ],
         "historial": [
             {"momento": _hace(90), "evento": "Email recibido", "actor": "tyrion"},
-            {"momento": _hace(89), "evento": "CTI recibido en lugar de permiso_circulacion",
+            {"momento": _hace(89),
+             "evento": "Declaración responsable + modelo 650 + anexo 650 clasificados",
              "actor": "tyrion"},
-            {"momento": _hace(89), "evento": "aviso_1 preparado para ruiz@gestorias.es",
-             "actor": "tyrion"},
-            {"momento": _hace(59), "evento": "aviso_2 preparado (sin respuesta al aviso_1)",
+            {"momento": _hace(89),
+             "evento": "⚠ Bastidor en Anexo 650 (X9999) no coincide con bastidor del trámite (X1234) — aviso_1 preparado para ruiz@gestorias.es",
              "actor": "tyrion"},
         ],
         "avisos_pendientes": [
-            {"tipo": "aviso_2", "enviado_at": _hace(59), "requisito": "permiso_circulacion"},
+            {"tipo": "aviso_1", "enviado_at": _hace(89), "requisito": "anexo_650"},
         ],
     },
     {

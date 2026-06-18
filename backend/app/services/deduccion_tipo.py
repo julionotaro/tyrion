@@ -41,16 +41,18 @@ class DeduccionTipo:
 # Documentos PRINCIPALES: su sola presencia define el tipo de trámite.
 # El orden importa: el primero que aparezca gana (mayor especificidad arriba).
 _PRINCIPALES: list[tuple[TipoDocumento, TipoTramite]] = [
-    (TipoDocumento.SOLICITUD_MATRICULACION, TipoTramite.MATRICULACION),
-    (TipoDocumento.SOLICITUD_BAJA,          TipoTramite.BAJA),
-    (TipoDocumento.CTI,                     TipoTramite.TRANSFERENCIA),
-    (TipoDocumento.CONTRATO_COMPRAVENTA,    TipoTramite.TRANSFERENCIA),
+    (TipoDocumento.SOLICITUD_MATRICULACION,               TipoTramite.MATRICULACION),
+    (TipoDocumento.SOLICITUD_BAJA,                        TipoTramite.BAJA),
+    (TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO, TipoTramite.TRANSFERENCIA),  # herencia
+    (TipoDocumento.CTI,                                   TipoTramite.TRANSFERENCIA),
+    (TipoDocumento.CONTRATO_COMPRAVENTA,                  TipoTramite.TRANSFERENCIA),
 ]
 
 # Documentos que sugieren herencia dentro de una transferencia.
 _SENALES_HERENCIA = {
     TipoDocumento.MODELO_650,
-    TipoDocumento.DECLARACION_HEREDEROS,
+    TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO,  # señal primaria
+    TipoDocumento.DECLARACION_HEREDEROS,                  # señal de respaldo
     TipoDocumento.ANEXO_650,
     TipoDocumento.CERTIFICADO_DEFUNCION,
 }

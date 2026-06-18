@@ -40,6 +40,10 @@ class TipoDocumento(str, Enum):
     MODELO_650 = "modelo_650"                     # Impuesto Sucesiones
     DECLARACION_HEREDEROS = "declaracion_herederos"
     ANEXO_650 = "anexo_650"                       # relación de bienes hereditarios
+    DECLARACION_RESPONSABLE_FALLECIMIENTO = "declaracion_responsable_fallecimiento"
+    # Declaración responsable de persona física para la solicitud del cambio
+    # de Titularidad de un vehículo por fallecimiento de su titular.
+    # Contiene: nombre, apellido, DNI, matrícula, firma. Doc CENTRAL del cotejo en herencia.
 
     # Empresa
     ESCRITURA_PODER = "escritura_poder"           # poder notarial del representante
@@ -88,6 +92,7 @@ def _init_campos_requeridos() -> dict:
         D.MODELO_650: ["causante", "heredero", "importe"],
         D.ANEXO_650: ["bastidor", "valor_vehiculo"],
         D.DECLARACION_HEREDEROS: ["causante", "herederos"],
+        D.DECLARACION_RESPONSABLE_FALLECIMIENTO: ["nombre", "dni", "matricula"],
         # B6: bastidor añadido — cruce matriculación multi-doc (matriz §9.4)
         D.SOLICITUD_MATRICULACION: ["matricula", "titular", "bastidor"],
         # B5: bastidor y potencia_kw añadidos — base de cálculo del impuesto y cruce (matriz §9.4)
@@ -209,6 +214,7 @@ CONFUSIONES_FRECUENTES = {
     TipoDocumento.MODELO_620: [TipoDocumento.PERMISO_CIRCULACION, TipoDocumento.JUSTIFICANTE_PAGO],
     TipoDocumento.CTI: [TipoDocumento.FICHA_TECNICA, TipoDocumento.PERMISO_CIRCULACION],
     TipoDocumento.MODELO_650: [TipoDocumento.MODELO_620],   # confusión herencia vs. ITP
+    TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO: [TipoDocumento.DECLARACION_HEREDEROS],
 }
 
 
@@ -224,8 +230,8 @@ CHECKLIST_POR_TRAMITE: dict[TipoTramite, list[str]] = {
     TipoTramite.TRANSFERENCIA: [
         "cti",
         "modelo_620",
-        "dni",
-        "contrato_compraventa",  # solo compraventa_particular — herencia no lo lleva (B1+B10)
+        # VERSIÓN ACOTADA (vigente): sin DNI ni contrato_compraventa.
+        # Previsto cambiar en próximos meses. Actualizar cuando el Colegio confirme.
     ],
     TipoTramite.MATRICULACION: [
         "solicitud_matriculacion",
@@ -276,6 +282,13 @@ RASGOS_DISTINTIVOS = {
     ),
     TipoDocumento.CERTIFICADO_DEFUNCION: (
         "Certificado de defunción del Registro Civil. Requerido en herencias."
+    ),
+    TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO: (
+        "Declaración responsable de persona física para la solicitud del cambio "
+        "de Titularidad de un vehículo por fallecimiento de su titular. "
+        "Contiene nombre, apellido, DNI del declarante, matrícula del vehículo y firma. "
+        "Es el documento CENTRAL del cotejo en transferencias por herencia. "
+        "NO confundir con declaración notarial de herederos."
     ),
     TipoDocumento.MANDATO_REPRESENTACION: (
         "Autorización del titular para que la gestoría actúe en su nombre."

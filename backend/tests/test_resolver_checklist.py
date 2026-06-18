@@ -110,36 +110,37 @@ def test_matriculacion_nuevo_origen_ue_sin_doc_extranjera():
 # ── TRANSFERENCIA ─────────────────────────────────────────────────────────────
 
 def test_transferencia_particular_base():
-    """Compraventa entre particulares: checklist estándar."""
+    """Compraventa entre particulares: checklist versión acotada vigente."""
     result = resolver_checklist(
         familia=FamiliaTramite.TRANSFERENCIA,
         subtipo=SubtipoTramite.COMPRAVENTA_PARTICULAR,
     )
     assert "cti" in result.requisitos  # CTI es el doc principal de transferencia
     assert "modelo_620" in result.requisitos
-    assert "dni" in result.requisitos
-    assert "contrato_compraventa" in result.requisitos
+    # Versión acotada: sin DNI ni contrato_compraventa (previsto ampliar)
     assert "certificado_defuncion" not in result.requisitos
     assert "modelo_650" not in result.requisitos
 
 
 def test_transferencia_herencia_requiere_docs_adicionales():
-    """Herencia: requiere defunción, modelo 650, herederos y Anexo 650 (§5.1.E).
+    """Herencia: checklist real confirmado sesión 13.
 
-    B10 CONFIRMADO: herencia tributa por Sucesiones (modelo_650), NO por ITP (modelo_620).
-    modelo_620 se elimina del checklist de herencia.
+    Doc central: declaracion_responsable_fallecimiento + modelo_650 + anexo_650.
+    CTI = carátula del expediente, NO doc de cotejo en herencia.
+    certificado_defuncion: condicional vía Tempus, NO se solicita activamente.
     """
     result = resolver_checklist(
         familia=FamiliaTramite.TRANSFERENCIA,
         subtipo=SubtipoTramite.HERENCIA,
     )
-    assert "certificado_defuncion" in result.requisitos
+    assert "declaracion_responsable_fallecimiento" in result.requisitos
     assert "modelo_650" in result.requisitos
-    assert "declaracion_herederos" in result.requisitos
     assert "anexo_650" in result.requisitos
-    # cti y dni del base se conservan; modelo_620 NO (ITP ≠ Sucesiones)
-    assert "cti" in result.requisitos
+    # CTI y modelo_620 NO forman parte del checklist de cotejo de herencia
+    assert "cti" not in result.requisitos
     assert "modelo_620" not in result.requisitos
+    assert "certificado_defuncion" not in result.requisitos
+    assert "declaracion_herederos" not in result.requisitos
 
 
 def test_transferencia_empresa_adquirente_requiere_poder_y_cif():
@@ -203,7 +204,7 @@ def test_herencia_empresa_adquirente_combina_ambas_reglas():
         subtipo=SubtipoTramite.HERENCIA,
         naturaleza_partes=NaturalezaPartes.EMPRESA_ADQUIRENTE,
     )
-    assert "certificado_defuncion" in result.requisitos
+    assert "declaracion_responsable_fallecimiento" in result.requisitos
     assert "modelo_650" in result.requisitos
     assert "escritura_poder" in result.requisitos
     assert "cif" in result.requisitos

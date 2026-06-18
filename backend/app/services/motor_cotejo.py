@@ -142,21 +142,24 @@ def resolver_checklist(
 
     # ── Checklist base por familia ─────────────────────────────────────────────
     if familia == FamiliaTramite.TRANSFERENCIA:
-        # CTI (Cambio de Titularidad) es el documento de ENTRADA para la transferencia.
-        # El permiso de circulación lo emite el Colegio DESPUÉS de completar el trámite.
-        # CONFIRMADO cliente (B11) — ver matriz §12.1 RESUELTA.
-        base = ["cti", "modelo_620", "dni", "contrato_compraventa"]
+        # Versión acotada vigente: CTI + modelo_620 únicamente.
+        # Sin DNI ni contrato_compraventa (versión acotada permitida temporalmente).
+        # Previsto ampliar en próximos meses — actualizar cuando Colegio confirme.
+        base = ["cti", "modelo_620"]
 
-        # §5.1.E — Herencia: mortis causa.
-        # CONFIRMADO cliente: herencia tributa por Sucesiones (modelo_650), NO por ITP (modelo_620).
-        # Se eliminan contrato_compraventa (B1) y modelo_620 (B10). Ver matriz §12.2.
         if subtipo == SubtipoTramite.HERENCIA:
-            base.remove("contrato_compraventa")
-            base.remove("modelo_620")
-            base += ["certificado_defuncion", "modelo_650", "declaracion_herederos", "anexo_650"]
-
-        # §5.1.G — Empresa adquirente implícita en compra_empresa
-        if subtipo == SubtipoTramite.COMPRA_EMPRESA:
+            # Herencia: cotejo real confirmado por administrativo (sesión 13).
+            # Doc central: declaracion_responsable_fallecimiento (nombre, DNI, matrícula, firma).
+            # Coteja contra: modelo_650 + anexo_650.
+            # certificado_defuncion: condicional vía Tempus — Tyrion lo reconoce si llega,
+            # pero NO lo solicita (lo gestiona Tempus directamente con la gestoría).
+            # CTI = carátula del expediente físico, llega aparte, NO es doc de cotejo aquí.
+            base = [
+                "declaracion_responsable_fallecimiento",
+                "modelo_650",
+                "anexo_650",
+            ]
+        elif subtipo == SubtipoTramite.COMPRA_EMPRESA:
             naturaleza_partes = NaturalezaPartes.EMPRESA_ADQUIRENTE
 
     elif familia == FamiliaTramite.MATRICULACION:

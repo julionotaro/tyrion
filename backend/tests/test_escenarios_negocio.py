@@ -58,7 +58,7 @@ def _email(*nombres: str, msg_id: str = "test@mail.com") -> EmailEntrante:
 
 @pytest.mark.asyncio
 async def test_transferencia_completa_pasa_a_listo_dgt():
-    """CTI + Modelo620 + DNI + Contrato → checklist completo → listo_dgt, 0 avisos."""
+    """CTI + Modelo620 → checklist completo (versión acotada) → listo_dgt, 0 avisos."""
     repo = RepositorioEnMemoria()
     clf = _clf_mock()
     pipeline = Pipeline(repo=repo, clasificador=clf, motor=MotorCotejo())
@@ -66,12 +66,10 @@ async def test_transferencia_completa_pasa_a_listo_dgt():
     clfs = [
         _clf_result(TipoDocumento.CTI),
         _clf_result(TipoDocumento.MODELO_620),
-        _clf_result(TipoDocumento.DNI),
-        _clf_result(TipoDocumento.CONTRATO_COMPRAVENTA),
     ]
     with patch.object(clf, "clasificar", side_effect=clfs):
         resultado = await pipeline.procesar_email(
-            email_entrante=_email("cti.pdf", "620.pdf", "dni.pdf", "contrato.pdf"),
+            email_entrante=_email("cti.pdf", "620.pdf"),
             tipo_tramite=TipoTramite.TRANSFERENCIA,
             tramite_id="t-transf-ok",
             gestoria_email="g@gestor.es",
@@ -85,18 +83,17 @@ async def test_transferencia_completa_pasa_a_listo_dgt():
 
 @pytest.mark.asyncio
 async def test_transferencia_sin_620_genera_aviso_no_escalado():
-    """CTI + DNI, falta modelo_620 y contrato → aviso_1 a gestoría, NUNCA escalado al admin."""
+    """Solo CTI, falta modelo_620 → aviso_1 a gestoría, NUNCA escalado al admin."""
     repo = RepositorioEnMemoria()
     clf = _clf_mock()
     pipeline = Pipeline(repo=repo, clasificador=clf, motor=MotorCotejo())
 
     clfs = [
         _clf_result(TipoDocumento.CTI),
-        _clf_result(TipoDocumento.DNI),
     ]
     with patch.object(clf, "clasificar", side_effect=clfs):
         resultado = await pipeline.procesar_email(
-            email_entrante=_email("cti.pdf", "dni.pdf"),
+            email_entrante=_email("cti.pdf"),
             tipo_tramite=TipoTramite.TRANSFERENCIA,
             tramite_id="t-transf-faltante",
             gestoria_email="g@gestor.es",
@@ -117,12 +114,10 @@ async def test_transferencia_cti_es_valido_no_evidencia():
     resultado = motor.cotejar_documento(clf_cti, TipoTramite.TRANSFERENCIA, "cti")
     assert resultado.validez == ValidezVinculo.VALIDO
 
-    # Y en el checklist completo de transferencia, CTI debe quedar en requisitos_validos
+    # Checklist completo versión acotada: CTI + modelo_620
     docs = {
         "cti": _clf_result(TipoDocumento.CTI, 0.95),
         "modelo_620": _clf_result(TipoDocumento.MODELO_620, 0.90),
-        "dni": _clf_result(TipoDocumento.DNI, 0.93),
-        "contrato_compraventa": _clf_result(TipoDocumento.CONTRATO_COMPRAVENTA, 0.88),
     }
     estado = motor.evaluar_checklist(TipoTramite.TRANSFERENCIA, docs)
     assert "cti" in estado.requisitos_validos
@@ -131,25 +126,24 @@ async def test_transferencia_cti_es_valido_no_evidencia():
 
 @pytest.mark.asyncio
 async def test_transferencia_herencia_completa():
-    """Herencia: CTI + declaracion + modelo_650 + anexo_650 + cert_defuncion → listo_dgt."""
+    """Herencia sesión 13: decl_responsable + modelo_650 + anexo_650 → listo_dgt."""
     motor = MotorCotejo()
-    requisitos = [
-        RequisitoCotejo("cti"),
-        RequisitoCotejo("declaracion_herederos"),
-        RequisitoCotejo("modelo_650"),
-        RequisitoCotejo("anexo_650"),
-        RequisitoCotejo("certificado_defuncion"),
-    ]
+    # Usar resolver_checklist para obtener los requisitos reales (sesión 13)
+    from app.services.motor_cotejo import resolver_checklist
+    from app.services.catalogo_documental import FamiliaTramite, SubtipoTramite
+    checklist = resolver_checklist(FamiliaTramite.TRANSFERENCIA, SubtipoTramite.HERENCIA)
+    requisitos = [RequisitoCotejo(r) for r in checklist.requisitos]
+
     docs = {
-        "cti": _clf_result(TipoDocumento.CTI),
-        "declaracion_herederos": _clf_result(TipoDocumento.DECLARACION_HEREDEROS),
+        "declaracion_responsable_fallecimiento": _clf_result(
+            TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO
+        ),
         "modelo_650": _clf_result(TipoDocumento.MODELO_650),
         "anexo_650": _clf_result(TipoDocumento.ANEXO_650),
-        "certificado_defuncion": _clf_result(TipoDocumento.CERTIFICADO_DEFUNCION),
     }
     estado = motor.evaluar_checklist(TipoTramite.TRANSFERENCIA, docs, requisitos=requisitos)
     assert estado.completo
-    assert len(estado.requisitos_validos) == 5
+    assert len(estado.requisitos_validos) == 3
 
 
 # ── PRINCIPIO DE ESCALADO ─────────────────────────────────────────────────────

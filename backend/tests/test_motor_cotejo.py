@@ -124,17 +124,15 @@ def test_rechazado_escala_al_admin_no_gestoria(motor):
 # ---------- evaluar_checklist: estado completo del trámite ----------
 
 def test_checklist_completo_transferencia(motor):
-    # CTI es el documento principal de transferencia (no permiso_circulacion)
+    # Versión acotada vigente: CTI + modelo_620 únicamente
     docs = {
         "cti": _clasificacion(TipoDocumento.CTI, 0.95),
         "modelo_620": _clasificacion(TipoDocumento.MODELO_620, 0.88),
-        "dni": _clasificacion(TipoDocumento.DNI, 0.92),
-        "contrato_compraventa": _clasificacion(TipoDocumento.CONTRATO_COMPRAVENTA, 0.85),
     }
     estado = motor.evaluar_checklist(TipoTramite.TRANSFERENCIA, docs)
 
     assert estado.completo
-    assert len(estado.requisitos_validos) == 4
+    assert len(estado.requisitos_validos) == 2
     assert not estado.requisitos_faltantes
     assert not estado.debe_pedir_gestoria
     assert not estado.debe_escalar_admin
@@ -226,7 +224,7 @@ def test_requisito_no_obligatorio_no_bloquea(motor):
 # ---------- preparar_mensaje_gestoria ----------
 
 def test_mensaje_gestoria_incluye_faltantes(motor):
-    # Solo CTI provisto; faltan modelo_620, dni, contrato_compraventa
+    # Solo CTI provisto; falta modelo_620 (versión acotada)
     docs = {
         "cti": _clasificacion(TipoDocumento.CTI, 0.95),
     }
@@ -235,8 +233,6 @@ def test_mensaje_gestoria_incluye_faltantes(motor):
 
     assert "1234ABC" in mensaje
     assert "modelo_620" in mensaje
-    assert "dni" in mensaje
-    assert "contrato_compraventa" in mensaje
 
 
 def test_mensaje_gestoria_vacio_si_completo(motor):

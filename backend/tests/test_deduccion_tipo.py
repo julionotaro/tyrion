@@ -95,3 +95,32 @@ def test_cti_prioritario_sobre_contrato():
     r = deducir_tipo_tramite([TipoDocumento.CONTRATO_COMPRAVENTA, TipoDocumento.CTI])
     assert r.tipo == TipoTramite.TRANSFERENCIA
     assert r.documento_principal == "cti"
+
+
+def test_declaracion_responsable_fallecimiento_sola_deduce_herencia():
+    """DECLARACION_RESPONSABLE_FALLECIMIENTO solo → TRANSFERENCIA subtipo herencia."""
+    r = deducir_tipo_tramite([TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO])
+    assert r.tipo == TipoTramite.TRANSFERENCIA
+    assert r.subtipo == SubtipoTramite.HERENCIA
+    assert r.documento_principal == "declaracion_responsable_fallecimiento"
+
+
+def test_declaracion_responsable_prioritaria_sobre_cti():
+    """DECLARACION_RESPONSABLE_FALLECIMIENTO tiene prioridad sobre CTI en _PRINCIPALES."""
+    r = deducir_tipo_tramite([
+        TipoDocumento.CTI,
+        TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO,
+    ])
+    assert r.documento_principal == "declaracion_responsable_fallecimiento"
+    assert r.subtipo == SubtipoTramite.HERENCIA
+
+
+def test_cti_con_decl_responsable_deduce_herencia():
+    """CTI + declaracion_responsable_fallecimiento → TRANSFERENCIA subtipo herencia."""
+    r = deducir_tipo_tramite([
+        TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO,
+        TipoDocumento.MODELO_650,
+        TipoDocumento.ANEXO_650,
+    ])
+    assert r.tipo == TipoTramite.TRANSFERENCIA
+    assert r.subtipo == SubtipoTramite.HERENCIA
