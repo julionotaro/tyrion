@@ -3,10 +3,9 @@ Tests para las validaciones cruzadas multi-documento (cruces.py).
 
 Cubre la matriz §9:
   - cruce_transferencia: bastidor, CET, NIF transmitente
-  - cruce_herencia:      causante, titular CTI, bastidor en Anexo 650
+  - cruce_herencia:      matrícula como clave principal; DNI para identidad;
+                         bastidor validado solo en anexo_650
   - cruce_matriculacion: bastidor consistente, potencia kW
-
-Clave de cruce primaria = bastidor (VIN), no matrícula.
 """
 import pytest
 
@@ -114,71 +113,102 @@ def test_transferencia_bastidor_normalizado():
 
 
 # ── cruce_herencia ────────────────────────────────────────────────────────────
+# Caso real: González Fernández
+# CTI: matricula=5042HZM, dni_transmitente=14958073T, dni_adquirente=35306584C
+# Declaración responsable: matricula=5042-HZM, dni=35306584C
+# Modelo 650: dni_causante=14958073T, dni_sujeto_pasivo=35306584C
+# Anexo 650: matricula=5042HZM, bastidor=JYA5J09200002507G
+# Cert defunción: dni_fallecido=14958073T
 
-def test_herencia_sin_discrepancias():
-    """Todos los campos de herencia consistentes → ok."""
+_MAT_CTI  = "5042HZM"
+_MAT_DECL = "5042-HZM"   # guión — se normaliza
+_MAT_ANEXO = "5042HZM"
+_DNI_CAUSANTE   = "14958073T"
+_DNI_HEREDERO   = "35306584C"
+_BASTIDOR_REAL  = "JYA5J09200002507G"
+
+
+def test_herencia_caso_gonzalez_sin_discrepancias():
+    """Caso real González Fernández — todo consistente → ok."""
     result = cruce_herencia(
-        nombre_causante_defuncion="JUAN GARCIA LOPEZ",
-        nombre_causante_650="JUAN GARCIA LOPEZ",
-        nombre_titular_cti="JUAN GARCIA LOPEZ",
-        bastidor_cti=BASTIDOR_OK,
-        bastidor_anexo_650=BASTIDOR_OK,
+        matricula_cti=_MAT_CTI,
+        matricula_declaracion=_MAT_DECL,
+        matricula_anexo_650=_MAT_ANEXO,
+        dni_causante_defuncion=_DNI_CAUSANTE,
+        dni_causante_650=_DNI_CAUSANTE,
+        dni_transmitente_cti=_DNI_CAUSANTE,
+        dni_heredero_declaracion=_DNI_HEREDERO,
+        dni_heredero_650=_DNI_HEREDERO,
+        dni_adquirente_cti=_DNI_HEREDERO,
+        bastidor_anexo_650=_BASTIDOR_REAL,
     )
     assert result.ok
+    assert result.severidad_maxima == SeveridadCruce.OK
 
 
-def test_herencia_causante_650_difiere_defuncion_rechazado():
-    """Causante del 650 ≠ fallecido en defunción → RECHAZADO (error crítico)."""
+def test_herencia_matricula_divergente_cti_declaracion_evidencia():
+    """Matrícula CTI ≠ declaración responsable → EVIDENCIA."""
     result = cruce_herencia(
-        nombre_causante_defuncion="JUAN GARCIA LOPEZ",
-        nombre_causante_650="PEDRO MARTINEZ RUIZ",
+        matricula_cti="5042HZM",
+        matricula_declaracion="9999ABC",
     )
     assert not result.ok
     disc = result.discrepancias[0]
-    assert disc.campo == "nombre_causante"
+    assert disc.campo == "matricula"
+    assert disc.severidad == SeveridadCruce.EVIDENCIA
+
+
+def test_herencia_matricula_divergente_cti_anexo_evidencia():
+    """Matrícula CTI ≠ anexo_650 → EVIDENCIA."""
+    result = cruce_herencia(
+        matricula_cti="5042HZM",
+        matricula_anexo_650="9999ABC",
+    )
+    assert not result.ok
+    assert any(d.campo == "matricula" for d in result.discrepancias)
+    assert result.severidad_maxima == SeveridadCruce.EVIDENCIA
+
+
+def test_herencia_dni_causante_defuncion_650_difieren_rechazado():
+    """DNI del fallecido (defunción) ≠ DNI causante (650) → RECHAZADO (error crítico)."""
+    result = cruce_herencia(
+        dni_causante_defuncion="14958073T",
+        dni_causante_650="99999999Z",
+    )
+    assert not result.ok
+    disc = result.discrepancias[0]
+    assert disc.campo == "dni_causante"
     assert disc.severidad == SeveridadCruce.RECHAZADO
     assert result.requiere_revision_manual
 
 
-def test_herencia_fallecido_no_es_titular_cti_evidencia():
-    """Fallecido ≠ titular del CTI → EVIDENCIA (puede ser heredado de tercero)."""
+def test_herencia_dni_causante_defuncion_cti_difieren_evidencia():
+    """DNI fallecido ≠ DNI transmitente CTI → EVIDENCIA."""
     result = cruce_herencia(
-        nombre_causante_defuncion="JUAN GARCIA LOPEZ",
-        nombre_causante_650="JUAN GARCIA LOPEZ",
-        nombre_titular_cti="MARIA PEREZ SANTOS",
+        dni_causante_defuncion="14958073T",
+        dni_causante_650="14958073T",      # 650 ok
+        dni_transmitente_cti="99999999Z",  # CTI difiere
     )
     assert not result.ok
-    disc = result.discrepancias[0]
-    assert disc.campo == "titular_vehiculo"
-    assert disc.severidad == SeveridadCruce.EVIDENCIA
+    assert any(d.campo == "dni_causante" and d.severidad == SeveridadCruce.EVIDENCIA
+               for d in result.discrepancias)
 
 
-def test_herencia_bastidor_no_en_anexo_650_rechazado():
-    """El vehículo no figura en el Anexo 650 → RECHAZADO."""
-    result = cruce_herencia(
-        nombre_causante_defuncion="JUAN GARCIA LOPEZ",
-        nombre_causante_650="JUAN GARCIA LOPEZ",
-        nombre_titular_cti="JUAN GARCIA LOPEZ",
-        bastidor_cti=BASTIDOR_OK,
-        bastidor_anexo_650=BASTIDOR_OTRO,
-    )
+def test_herencia_bastidor_ausente_anexo_evidencia():
+    """Sin bastidor en anexo_650 → EVIDENCIA (campo faltante)."""
+    result = cruce_herencia(bastidor_anexo_650="")
     assert not result.ok
-    disc = result.discrepancias[0]
-    assert disc.campo == "bastidor"
-    assert disc.severidad == SeveridadCruce.RECHAZADO
+    assert any(d.campo == "bastidor" and d.doc_a == "anexo_650" for d in result.discrepancias)
+    assert result.severidad_maxima == SeveridadCruce.EVIDENCIA
 
 
-def test_herencia_multiples_discrepancias():
-    """Varias discrepancias simultáneas: la severidad máxima es RECHAZADO."""
-    result = cruce_herencia(
-        nombre_causante_defuncion="JUAN GARCIA LOPEZ",
-        nombre_causante_650="PEDRO MARTINEZ RUIZ",   # RECHAZADO
-        nombre_titular_cti="MARIA PEREZ SANTOS",      # EVIDENCIA
-        bastidor_cti=BASTIDOR_OK,
-        bastidor_anexo_650=BASTIDOR_OTRO,              # RECHAZADO
-    )
-    assert len(result.discrepancias) == 3
-    assert result.severidad_maxima == SeveridadCruce.RECHAZADO
+def test_herencia_sin_datos_solo_bastidor_ausente():
+    """Sin datos: solo se activa el aviso de bastidor ausente en anexo (campo obligatorio)."""
+    result = cruce_herencia()
+    assert not result.ok
+    assert len(result.discrepancias) == 1
+    assert result.discrepancias[0].campo == "bastidor"
+    assert result.severidad_maxima == SeveridadCruce.EVIDENCIA
 
 
 # ── cruce_matriculacion ───────────────────────────────────────────────────────

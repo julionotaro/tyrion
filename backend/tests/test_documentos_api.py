@@ -58,8 +58,8 @@ def test_extraccion_documento_inexistente():
 
 
 def test_extraccion_documento_evidencia_compatible():
-    """doc-005c es Anexo 650 con bastidor incorrecto → EVIDENCIA_COMPATIBLE."""
-    resp = client.get("/api/documentos/doc-005c/extraccion")
+    """doc-009 es Anexo 650 con bastidor incorrecto → EVIDENCIA_COMPATIBLE."""
+    resp = client.get("/api/documentos/doc-009/extraccion")
     assert resp.status_code == 200
     data = resp.json()
     assert data["validez"] == "EVIDENCIA_COMPATIBLE"
@@ -86,7 +86,7 @@ def test_archivo_documento_inexistente():
 
 def test_campos_extraidos_estados_validos():
     """Todos los campos extraídos deben tener estados reconocidos."""
-    for doc_id in ("doc-001", "doc-003", "doc-005c", "doc-007"):
+    for doc_id in ("doc-001", "doc-003", "doc-009", "doc-007"):
         resp = client.get(f"/api/documentos/{doc_id}/extraccion")
         assert resp.status_code == 200
         for campo in resp.json()["campos_extraidos"]:

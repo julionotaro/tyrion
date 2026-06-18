@@ -57,7 +57,7 @@ def test_filtro_por_estado():
     r = client.get("/api/tramites?estado=pendiente_gestoria")
     assert r.status_code == 200
     data = r.json()
-    assert len(data) == 3  # t-003, t-004, t-008
+    assert len(data) == 2  # t-004, t-008 (t-003 ahora es listo_dgt)
     for t in data:
         assert t["estado"] == "pendiente_gestoria"
 

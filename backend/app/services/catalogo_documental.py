@@ -74,12 +74,12 @@ def _init_campos_requeridos() -> dict:
     """
     D = TipoDocumento
     return {
-        # CTI (Cambio de Titularidad) — documento de entrada para transferencia.
-        # CONFIRMADO cliente (B11): permiso_circulacion es el documento de SALIDA, no de entrada.
-        D.CTI: ["matricula", "titular", "bastidor", "cet"],
+        # CTI (Cambio de Titularidad) — NO tiene bastidor.
+        # En herencia, CET estará vacío pero lo pedimos para transferencia estándar.
+        # Identidad se cruza por DNI (transmitente = causante, adquirente = heredero).
+        D.CTI: ["matricula", "dni_adquirente", "dni_transmitente", "cet"],
         D.PERMISO_CIRCULACION: ["matricula", "titular", "bastidor"],
-        # cet: Código Electrónico de Transmisión — clave de cruce CTI↔620 (instructivo C.1 / matriz §9.2)
-        # bastidor: clave de cruce estable (matrícula puede cambiar)
+        # cet: Código Electrónico de Transmisión — cruce CTI↔620 solo en transferencia estándar
         D.MODELO_620: ["importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"],
         D.DNI: ["nombre", "numero_documento"],
         # B7: bastidor es clave de cruce estable (matrícula puede cambiar — instructivo C.1)
@@ -87,10 +87,13 @@ def _init_campos_requeridos() -> dict:
         # B4: potencia_kw añadida — campo P.2 de la ficha técnica, base de cálculo del IVTM (instructivo C.4 / matriz §9.4)
         D.FICHA_TECNICA: ["marca", "modelo", "bastidor", "potencia_kw"],
         D.JUSTIFICANTE_PAGO: ["importe", "referencia"],
-        D.CERTIFICADO_DEFUNCION: ["nombre_fallecido", "fecha_defuncion"],
+        # dni_fallecido añadido — clave de cruce causante entre certificado_defuncion y modelo_650
+        D.CERTIFICADO_DEFUNCION: ["nombre_fallecido", "dni_fallecido", "fecha_defuncion"],
         D.MANDATO_REPRESENTACION: ["representado", "representante"],
-        D.MODELO_650: ["causante", "heredero", "importe"],
-        D.ANEXO_650: ["bastidor", "valor_vehiculo"],
+        # dni_causante/dni_sujeto_pasivo en lugar de nombres — cruce por DNI más fiable
+        D.MODELO_650: ["dni_causante", "dni_sujeto_pasivo", "importe"],
+        # matricula añadida — cruce matricula CTI↔anexo_650 en herencia
+        D.ANEXO_650: ["matricula", "bastidor", "valor_vehiculo"],
         D.DECLARACION_HEREDEROS: ["causante", "herederos"],
         D.DECLARACION_RESPONSABLE_FALLECIMIENTO: ["nombre", "dni", "matricula"],
         # B6: bastidor añadido — cruce matriculación multi-doc (matriz §9.4)

@@ -3,18 +3,19 @@ Validaciones cruzadas multi-documento de Tyrion.
 
 Implementa los cruces de la matriz §9 (docs/matriz-documental-tramites.md):
   - cruce_transferencia(): CET del CTI == CET del 620; bastidores consistentes
-  - cruce_herencia():      causante(650) == fallecido(defunción) == titular CTI;
-                           vehículo presente en Anexo 650
+  - cruce_herencia():      matrícula consistente (CTI + declaración + anexo 650);
+                           identidad causante y heredero por DNI;
+                           bastidor presente en anexo 650 (no se cruza con otro doc)
   - cruce_matriculacion(): bastidor consistente en solicitud + ficha + IVTM +
                            impuesto matriculación
 
-Clave de cruce primaria = BASTIDOR (VIN, 17 caracteres).
-La matrícula puede cambiar (nueva matriculación, cambio de domicilio, etc.);
-el bastidor es inmutable a lo largo del ciclo de vida del vehículo.
+Cotejo herencia confirmado con administrativo (sesión 13):
+  - El CTI NO lleva bastidor en herencia; la MATRÍCULA es la clave de cruce.
+  - Los cruces de identidad usan DNI (más confiable que nombre).
+  - El bastidor solo existe en el anexo 650; se valida presencia, no cruce.
 
-TODO sesión siguiente:
-  - Ingesta de planilla (Relación Transmisiones/Matrículas)
-  - Cruce email ↔ planilla (trámites del día vs. correos recibidos)
+Clave de cruce primaria = BASTIDOR en transferencia ordinaria y matriculación.
+En HERENCIA la clave central es la MATRÍCULA.
 """
 from __future__ import annotations
 
@@ -165,69 +166,123 @@ def cruce_transferencia(
 
 
 def cruce_herencia(
-    nombre_causante_defuncion: str = "",
-    nombre_causante_650: str = "",
-    nombre_titular_cti: str = "",
-    bastidor_cti: str = "",
+    matricula_cti: str = "",
+    matricula_declaracion: str = "",
+    matricula_anexo_650: str = "",
+    dni_causante_defuncion: str = "",
+    dni_causante_650: str = "",
+    dni_transmitente_cti: str = "",
+    dni_heredero_declaracion: str = "",
+    dni_heredero_650: str = "",
+    dni_adquirente_cti: str = "",
     bastidor_anexo_650: str = "",
 ) -> ResultadoCruce:
-    """Cruces de una TRANSFERENCIA por herencia (matriz §9.3).
+    """Cruces de una TRANSFERENCIA por herencia.
 
-    Args:
-        nombre_causante_defuncion: nombre del fallecido en el certificado de defunción.
-        nombre_causante_650:       causante declarado en el modelo 650.
-        nombre_titular_cti:        titular del vehículo en el CTI.
-        bastidor_cti:              bastidor del CTI.
-        bastidor_anexo_650:        bastidor del vehículo en el Anexo 650.
+    Cotejo real confirmado con administrativo (sesión 13):
+      - Clave central: MATRÍCULA coincide en CTI + declaración responsable + anexo 650.
+        (El CTI NO lleva bastidor; la matrícula es la clave de cruce en herencia.)
+      - Identidad del causante (por DNI): certificado defunción == modelo 650 == transmitente CTI.
+      - Identidad del heredero (por DNI): declaración == modelo 650 (sujeto pasivo) == adquirente CTI.
+      - Bastidor del anexo 650: se valida "presente y legible", NO se cruza contra otro
+        documento (el bastidor solo figura en el anexo en una herencia).
+        El cruce bastidor↔documento de tasa se reserva para trámites con pago de tasa.
     """
     resultado = ResultadoCruce(tipo_cruce="herencia")
 
-    def _nombres_divergen(a: str, b: str) -> bool:
-        return bool(a and b and a.strip().upper() != b.strip().upper())
+    def _difieren(a: str, b: str) -> bool:
+        return bool(a and b and a.strip().upper().replace("-", "").replace(" ", "")
+                    != b.strip().upper().replace("-", "").replace(" ", ""))
 
-    # Causante del 650 debe coincidir con el fallecido en defunción
-    if _nombres_divergen(nombre_causante_defuncion, nombre_causante_650):
+    # ── Cruce 1: MATRÍCULA (clave central) ──
+    # CTI ↔ declaración responsable
+    if _difieren(matricula_cti, matricula_declaracion):
         resultado.discrepancias.append(DiscrepanciaCruce(
-            campo="nombre_causante",
-            doc_a="certificado_defuncion",
-            valor_a=nombre_causante_defuncion,
-            doc_b="modelo_650",
-            valor_b=nombre_causante_650,
+            campo="matricula",
+            doc_a="cti", valor_a=matricula_cti,
+            doc_b="declaracion_responsable_fallecimiento", valor_b=matricula_declaracion,
+            severidad=SeveridadCruce.EVIDENCIA,
+            descripcion=(
+                f"La matrícula del CTI ({matricula_cti}) no coincide con la de la "
+                f"declaración responsable ({matricula_declaracion}). Pedir aclaración a gestoría."
+            ),
+        ))
+    # CTI ↔ anexo 650
+    if _difieren(matricula_cti, matricula_anexo_650):
+        resultado.discrepancias.append(DiscrepanciaCruce(
+            campo="matricula",
+            doc_a="cti", valor_a=matricula_cti,
+            doc_b="anexo_650", valor_b=matricula_anexo_650,
+            severidad=SeveridadCruce.EVIDENCIA,
+            descripcion=(
+                f"La matrícula del CTI ({matricula_cti}) no figura en el Anexo 650 "
+                f"({matricula_anexo_650}). Verificar que el vehículo está incluido en la herencia."
+            ),
+        ))
+
+    # ── Cruce 2: Identidad del CAUSANTE (por DNI) ──
+    # defunción ↔ modelo 650
+    if _difieren(dni_causante_defuncion, dni_causante_650):
+        resultado.discrepancias.append(DiscrepanciaCruce(
+            campo="dni_causante",
+            doc_a="certificado_defuncion", valor_a=dni_causante_defuncion,
+            doc_b="modelo_650", valor_b=dni_causante_650,
             severidad=SeveridadCruce.RECHAZADO,
             descripcion=(
-                f"El causante del 650 ('{nombre_causante_650}') no coincide con el "
-                f"fallecido en el certificado de defunción ('{nombre_causante_defuncion}'). "
+                f"El DNI del causante en el modelo 650 ({dni_causante_650}) no coincide "
+                f"con el fallecido del certificado de defunción ({dni_causante_defuncion}). "
                 "Cruce de herencia bloqueado."
             ),
         ))
-
-    # Fallecido debe ser el titular del CTI (el vehículo pertenecía al causante)
-    if _nombres_divergen(nombre_causante_defuncion, nombre_titular_cti):
+    # defunción ↔ transmitente CTI
+    if _difieren(dni_causante_defuncion, dni_transmitente_cti):
         resultado.discrepancias.append(DiscrepanciaCruce(
-            campo="titular_vehiculo",
-            doc_a="certificado_defuncion",
-            valor_a=nombre_causante_defuncion,
-            doc_b="cti",
-            valor_b=nombre_titular_cti,
+            campo="dni_causante",
+            doc_a="certificado_defuncion", valor_a=dni_causante_defuncion,
+            doc_b="cti", valor_b=dni_transmitente_cti,
             severidad=SeveridadCruce.EVIDENCIA,
             descripcion=(
-                f"El fallecido ('{nombre_causante_defuncion}') no coincide con el titular "
-                f"del CTI ('{nombre_titular_cti}'). ¿Vehículo a nombre de tercero?"
+                f"El DNI del fallecido ({dni_causante_defuncion}) no coincide con el "
+                f"transmitente del CTI ({dni_transmitente_cti}). ¿Vehículo a nombre de tercero?"
             ),
         ))
 
-    # El vehículo debe figurar en el Anexo 650 por su bastidor
-    if _bastidores_divergen(bastidor_cti, bastidor_anexo_650):
+    # ── Cruce 3: Identidad del HEREDERO/adquirente (por DNI) ──
+    # declaración ↔ modelo 650 sujeto pasivo
+    if _difieren(dni_heredero_declaracion, dni_heredero_650):
+        resultado.discrepancias.append(DiscrepanciaCruce(
+            campo="dni_heredero",
+            doc_a="declaracion_responsable_fallecimiento", valor_a=dni_heredero_declaracion,
+            doc_b="modelo_650", valor_b=dni_heredero_650,
+            severidad=SeveridadCruce.EVIDENCIA,
+            descripcion=(
+                f"El DNI del declarante ({dni_heredero_declaracion}) no coincide con el "
+                f"sujeto pasivo del modelo 650 ({dni_heredero_650}). Pedir aclaración."
+            ),
+        ))
+    # declaración ↔ adquirente CTI
+    if _difieren(dni_heredero_declaracion, dni_adquirente_cti):
+        resultado.discrepancias.append(DiscrepanciaCruce(
+            campo="dni_heredero",
+            doc_a="declaracion_responsable_fallecimiento", valor_a=dni_heredero_declaracion,
+            doc_b="cti", valor_b=dni_adquirente_cti,
+            severidad=SeveridadCruce.EVIDENCIA,
+            descripcion=(
+                f"El DNI del declarante ({dni_heredero_declaracion}) no coincide con el "
+                f"adquirente del CTI ({dni_adquirente_cti})."
+            ),
+        ))
+
+    # ── Validación 4: bastidor presente en anexo 650 (NO se cruza) ──
+    if not bastidor_anexo_650 or not bastidor_anexo_650.strip():
         resultado.discrepancias.append(DiscrepanciaCruce(
             campo="bastidor",
-            doc_a="cti",
-            valor_a=bastidor_cti,
-            doc_b="anexo_650",
-            valor_b=bastidor_anexo_650,
-            severidad=SeveridadCruce.RECHAZADO,
+            doc_a="anexo_650", valor_a="(ausente)",
+            doc_b="anexo_650", valor_b="(ausente)",
+            severidad=SeveridadCruce.EVIDENCIA,
             descripcion=(
-                f"El bastidor del CTI ({bastidor_cti}) no figura en el Anexo 650 "
-                f"({bastidor_anexo_650}). El vehículo no está incluido en la herencia declarada."
+                "No se pudo extraer el bastidor del vehículo en el Anexo 650. "
+                "El bastidor es obligatorio para la presentación a DGT. Pedir reenvío legible."
             ),
         ))
 
@@ -303,3 +358,4 @@ def cruce_matriculacion(
             ))
 
     return resultado
+

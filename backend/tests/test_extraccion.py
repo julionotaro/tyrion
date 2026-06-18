@@ -27,9 +27,9 @@ def _payload(tipo: str, score: float, datos: dict) -> str:
 # ── Fixtures de datos completos por familia ────────────────────────────────────
 
 DATOS_COMPLETOS = {
-    # B2: cet añadido — clave de cruce CTI↔620 (instructivo C.1 / matriz §9.2)
+    # CTI: identidad por DNI; bastidor removido (no figura en herencia); cet para transferencia estándar
     TipoDocumento.CTI: {
-        "matricula": "1234 ABC", "titular": "Luis Fernández", "bastidor": "WVW12345",
+        "matricula": "1234 ABC", "dni_adquirente": "12345678A", "dni_transmitente": "87654321B",
         "cet": "CET-20260601-001",
     },
     # B3: cet + bastidor añadidos al modelo_620 (mismo cruce)
@@ -39,7 +39,7 @@ DATOS_COMPLETOS = {
         "cet": "CET-20260601-001", "bastidor": "WVW12345",
     },
     TipoDocumento.ANEXO_650: {
-        "bastidor": "WVW12345", "valor_vehiculo": "12000",
+        "matricula": "1234ABC", "bastidor": "WVW12345", "valor_vehiculo": "12000",
     },
     TipoDocumento.DNI: {
         "nombre": "Ana Martínez", "numero_documento": "12345678Z",
@@ -65,14 +65,13 @@ class TestCTI:
         assert resultado.confianza_score <= 0.5
         assert resultado.requiere_validacion_humana is True
         faltantes = set(resultado.campos_faltantes)
-        # B2: cet es campo requerido del CTI (clave de cruce con modelo_620)
-        assert {"matricula", "titular", "bastidor", "cet"}.issubset(faltantes)
+        assert {"matricula", "dni_adquirente", "dni_transmitente", "cet"}.issubset(faltantes)
 
     def test_campos_parciales_penaliza(self):
-        datos = {"matricula": "1234 ABC"}  # falta titular y bastidor
+        datos = {"matricula": "1234 ABC"}  # faltan dni_adquirente, dni_transmitente, cet
         resultado = _parsear_respuesta(_payload("cti", 0.90, datos), None)
         assert resultado.confianza_score <= 0.5
-        assert "titular" in resultado.campos_faltantes
+        assert "dni_adquirente" in resultado.campos_faltantes
 
 
 # ── MODELO_620 ─────────────────────────────────────────────────────────────────

@@ -13,31 +13,30 @@ def test_todos_los_tipos_tienen_entrada():
 
 
 def test_helper_campos_requeridos():
-    # cet añadido en B2: clave de cruce CTI↔620 (instructivo C.1 / matriz §9.2)
-    assert campos_requeridos(TipoDocumento.CTI) == ["matricula", "titular", "bastidor", "cet"]
+    # CTI: identidad por DNI (no por nombre/titular); bastidor removido (no figura en herencia)
+    assert campos_requeridos(TipoDocumento.CTI) == ["matricula", "dni_adquirente", "dni_transmitente", "cet"]
     assert campos_requeridos(TipoDocumento.DESCONOCIDO) == []
 
 
 def test_evaluar_completo():
-    datos = {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345", "cet": "CET123"}
+    datos = {"matricula": "5042HZM", "dni_adquirente": "35306584C", "dni_transmitente": "14958073T", "cet": "CET123"}
     completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, datos)
     assert completo is True
     assert faltantes == []
 
 
 def test_evaluar_incompleto():
-    datos = {"matricula": "1234ABC"}  # faltan titular, bastidor y cet
+    datos = {"matricula": "1234ABC"}  # faltan dni_adquirente, dni_transmitente y cet
     completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, datos)
     assert completo is False
-    assert "titular" in faltantes
-    assert "bastidor" in faltantes
+    assert "dni_adquirente" in faltantes
+    assert "dni_transmitente" in faltantes
 
 
 def test_evaluar_vacio():
     completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, {})
     assert completo is False
-    # B2: cet ahora es campo requerido del CTI
-    assert set(faltantes) == {"matricula", "titular", "bastidor", "cet"}
+    assert set(faltantes) == {"matricula", "dni_adquirente", "dni_transmitente", "cet"}
 
 
 def test_evaluar_tipo_sin_campos():
@@ -48,8 +47,8 @@ def test_evaluar_tipo_sin_campos():
 
 
 def test_campo_none_cuenta_como_faltante():
-    datos = {"matricula": "1234ABC", "titular": None, "bastidor": ""}
+    datos = {"matricula": "1234ABC", "dni_adquirente": None, "dni_transmitente": ""}
     completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, datos)
     assert completo is False
-    assert "titular" in faltantes
-    assert "bastidor" in faltantes
+    assert "dni_adquirente" in faltantes
+    assert "dni_transmitente" in faltantes

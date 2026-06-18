@@ -64,7 +64,8 @@ async def test_clasificador_openai_texto_pdf(tmp_path):
     pdf = tmp_path / "test.pdf"
     pdf.write_bytes(PDF_MINIMO)
 
-    cliente = _cliente_mock("cti", 0.93)
+    datos_cti = {"matricula": "5042HZM", "dni_adquirente": "35306584C", "dni_transmitente": "14958073T", "cet": "CET-001"}
+    cliente = _cliente_mock("cti", 0.93, datos=datos_cti)
     clf = ClasificadorOpenAI(client=cliente)
 
     with patch("app.services.clasificador_openai._extraer_texto_pdf", return_value="CERTIFICADO DE TRANSFERENCIA INDIVIDUAL bastidor 1234"):

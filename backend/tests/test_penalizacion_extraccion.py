@@ -25,8 +25,7 @@ def _respuesta_openai(tipo: str, score: float, datos: dict) -> SimpleNamespace:
 
 def test_openai_con_todos_los_campos_confianza_intacta():
     """CTI con todos los campos (incluido cet — B2) → confianza original sin penalizar."""
-    # B2: cet es campo requerido del CTI (clave de cruce CTI↔620, instructivo C.1)
-    datos = {"matricula": "1234ABC", "titular": "Juan García", "bastidor": "WBA12345", "cet": "CET-001"}
+    datos = {"matricula": "1234ABC", "dni_adquirente": "12345678A", "dni_transmitente": "87654321B", "cet": "CET-001"}
     resultado = _parsear_openai(json.dumps({
         "tipo_detectado": "cti",
         "confianza_score": 0.93,
@@ -50,8 +49,8 @@ def test_openai_datos_vacios_penaliza():
     assert resultado.confianza_nivel == "BAJA"
     assert resultado.requiere_validacion_humana is True
     assert "matricula" in resultado.campos_faltantes
-    assert "titular" in resultado.campos_faltantes
-    assert "bastidor" in resultado.campos_faltantes
+    assert "dni_adquirente" in resultado.campos_faltantes
+    assert "dni_transmitente" in resultado.campos_faltantes
     assert "Extracción incompleta" in resultado.justificacion
 
 
@@ -65,8 +64,8 @@ def test_openai_datos_parciales_penaliza():
     }), tipo_declarado=None)
     assert resultado.confianza_score <= 0.5
     assert resultado.requiere_validacion_humana is True
-    assert "titular" in resultado.campos_faltantes
-    assert "bastidor" in resultado.campos_faltantes
+    assert "dni_adquirente" in resultado.campos_faltantes
+    assert "dni_transmitente" in resultado.campos_faltantes
 
 
 def test_tipo_sin_campos_no_penaliza():
@@ -87,11 +86,11 @@ def test_nulos_explicitos_cuentan_como_faltantes():
     resultado = _parsear_openai(json.dumps({
         "tipo_detectado": "cti",
         "confianza_score": 0.90,
-        "datos_extraidos": {"matricula": "1234ABC", "titular": None, "bastidor": None},
+        "datos_extraidos": {"matricula": "1234ABC", "dni_adquirente": None, "dni_transmitente": None},
         "justificacion": "Test nulos",
     }), tipo_declarado=None)
     assert resultado.requiere_validacion_humana is True
-    assert "titular" in resultado.campos_faltantes
+    assert "dni_adquirente" in resultado.campos_faltantes
 
 
 @pytest.mark.asyncio
@@ -101,7 +100,7 @@ async def test_clasificador_openai_penaliza_en_classify(tmp_path):
     pdf = tmp_path / "cti.pdf"
     pdf.write_bytes(PDF_MINIMO)
 
-    resp = _respuesta_openai("cti", 0.95, {"matricula": "1234ABC"})  # faltan titular y bastidor
+    resp = _respuesta_openai("cti", 0.95, {"matricula": "1234ABC"})  # faltan dni_adquirente, etc.
     cliente = MagicMock()
     cliente.chat.completions.create = AsyncMock(return_value=resp)
     clf = ClasificadorOpenAI(client=cliente)
@@ -112,4 +111,4 @@ async def test_clasificador_openai_penaliza_en_classify(tmp_path):
 
     assert resultado.confianza_score <= 0.5
     assert resultado.requiere_validacion_humana is True
-    assert "titular" in resultado.campos_faltantes
+    assert "dni_adquirente" in resultado.campos_faltantes
