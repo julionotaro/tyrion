@@ -95,6 +95,10 @@ def _extraer_texto_pdf(contenido: bytes) -> str | None:
 def _pdf_paginas_png(contenido: bytes, max_paginas: int = 4) -> list[bytes]:
     """Convierte hasta max_paginas de un PDF a PNG via PyMuPDF a 200 DPI.
 
+    Corrige rotación automáticamente: si page.rotation != 0 aplica la matriz
+    inversa para entregar la imagen siempre derecha (importante para apaisados
+    como el Anexo 650, donde el bastidor en horizontal es muy difícil de leer).
+
     Devuelve lista vacía si falla o fitz no está instalado.
     """
     try:
@@ -106,7 +110,13 @@ def _pdf_paginas_png(contenido: bytes, max_paginas: int = 4) -> list[bytes]:
         try:
             paginas = []
             for i in range(min(max_paginas, doc.page_count)):
-                pix = doc.load_page(i).get_pixmap(dpi=200)
+                page = doc.load_page(i)
+                rot = page.rotation
+                # Matriz base a 200 DPI + corrección de rotación inversa si hay giro
+                mat = fitz.Matrix(200 / 72, 200 / 72)
+                if rot != 0:
+                    mat = fitz.Matrix(200 / 72, 200 / 72).prerotate(-rot)
+                pix = page.get_pixmap(matrix=mat)
                 paginas.append(pix.tobytes("png"))
         finally:
             doc.close()
@@ -114,6 +124,57 @@ def _pdf_paginas_png(contenido: bytes, max_paginas: int = 4) -> list[bytes]:
     except Exception as exc:
         logger.debug("PyMuPDF pdf→png falló: %s", exc)
         return []
+
+
+def _fusionar_resultados(
+    texto: ResultadoClasificacion,
+    vision: ResultadoClasificacion,
+) -> ResultadoClasificacion:
+    """Fusiona dos clasificaciones: toma los campos que visión encontró y texto no.
+
+    Solo se fusiona si ambas coinciden en tipo_detectado. Si difieren, se devuelve
+    el de mayor confianza_score (sin penalización por campos faltantes aplicada).
+    Los campos combinados se revalúan con evaluar_completitud_extraccion.
+    """
+    if texto.tipo_detectado != vision.tipo_detectado:
+        return texto if texto.confianza_score >= vision.confianza_score else vision
+
+    campos_combinados = dict(vision.datos_extraidos or {})
+    campos_combinados.update(texto.datos_extraidos or {})  # texto tiene prioridad si ambos tienen el campo
+    for k, v in (vision.datos_extraidos or {}).items():
+        campos_combinados.setdefault(k, v)
+
+    completo, faltantes = evaluar_completitud_extraccion(texto.tipo_detectado, campos_combinados)
+    score_base = max(texto.confianza_score, vision.confianza_score)
+    if not completo:
+        score_base = min(score_base, 0.5)
+    nivel = _nivel_desde_score_raw(score_base)
+
+    justificacion = texto.justificacion
+    if vision.datos_extraidos:
+        nuevos = [k for k in vision.datos_extraidos if k not in (texto.datos_extraidos or {})]
+        if nuevos:
+            justificacion += f" | Visión completó: {nuevos}"
+
+    return ResultadoClasificacion(
+        tipo_detectado=texto.tipo_detectado,
+        confianza_score=score_base,
+        confianza_nivel=nivel,
+        datos_extraidos=campos_combinados,
+        justificacion=justificacion,
+        discrepancia_con_declarado=texto.discrepancia_con_declarado,
+        requiere_validacion_humana=(nivel == "BAJA"),
+        campos_faltantes=faltantes,
+    )
+
+
+def _nivel_desde_score_raw(score: float) -> str:
+    s = get_settings()
+    if score >= s.confianza_alta:
+        return "ALTA"
+    if score >= s.confianza_media:
+        return "MEDIA"
+    return "BAJA"
 
 
 def _nivel_desde_score(score: float) -> str:
@@ -218,17 +279,29 @@ class ClasificadorOpenAI:
 
         if ext == ".pdf":
             # 1a. Intentar extracción de texto
-            texto = _extraer_texto_pdf(contenido)
-            if texto:
+            texto_pdf = _extraer_texto_pdf(contenido)
+            if texto_pdf:
                 # Ruta barata: texto puro, sin visión
-                respuesta = await self._cliente_texto(sistema, texto + hint)
-                resultado = _parsear_respuesta(respuesta, tipo_declarado)
+                respuesta = await self._cliente_texto(sistema, texto_pdf + hint)
+                resultado_texto = _parsear_respuesta(respuesta, tipo_declarado)
                 logger.info(
                     "Clasificador OpenAI (texto) procesó %s → %s (confianza %.2f)",
-                    Path(ruta_archivo).name, resultado.tipo_detectado.value,
-                    resultado.confianza_score,
+                    Path(ruta_archivo).name, resultado_texto.tipo_detectado.value,
+                    resultado_texto.confianza_score,
                 )
-                return resultado
+                # Reintento por visión si la extracción de texto quedó incompleta
+                if resultado_texto.campos_faltantes:
+                    paginas = _pdf_paginas_png(contenido)
+                    if paginas:
+                        logger.info(
+                            "Reintento visión para %s: campos faltantes tras texto: %s",
+                            Path(ruta_archivo).name, resultado_texto.campos_faltantes,
+                        )
+                        resultado_vision = await self._clasificar_vision_bytes(
+                            paginas, "image/png", tipo_declarado, ruta_archivo,
+                        )
+                        return _fusionar_resultados(resultado_texto, resultado_vision)
+                return resultado_texto
             # 1c. PDF escaneado: convertir todas las páginas (hasta 4) a PNG con 200 DPI
             paginas = _pdf_paginas_png(contenido)
             if paginas:

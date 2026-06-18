@@ -29,6 +29,7 @@ from app.services.catalogo_documental import TipoTramite, SubtipoTramite
 from app.services.deduccion_tipo import deducir_tipo_tramite
 from app.services.ingesta_email import AdjuntoEmail, EmailEntrante, FuenteCorreo, IngestaEmail
 from app.services.pipeline import Pipeline, RepositorioEnMemoria
+from app.services.gestorias import nombre_gestoria
 from app.services.storage import guardar_archivo
 from app.api.store import DOCUMENTOS_CARGA
 from app.services import registro_tramites
@@ -171,7 +172,7 @@ def _construir_tramite_email(
         "subtipo": subtipo_str,
         "matricula": matricula,
         "bastidor": bastidor,
-        "gestoria": email.remitente,
+        "gestoria": nombre_gestoria(email.remitente),
         "gestoria_email": email.remitente,
         "estado": estado,
         "fecha_entrada": ahora,

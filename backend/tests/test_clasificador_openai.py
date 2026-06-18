@@ -230,3 +230,69 @@ def test_extraer_texto_pdf_bytes_invalidos():
         assert resultado is None or isinstance(resultado, str)
     except Exception as exc:
         pytest.fail(f"_extraer_texto_pdf no debe propagar excepciones: {exc}")
+
+
+# ── Tests: reintento por visión cuando extracción de texto incompleta ─────────
+
+@pytest.mark.asyncio
+async def test_reintento_vision_cuando_campos_faltantes(tmp_path):
+    """Si texto extrae el tipo pero deja campos faltantes, se reintenta por visión."""
+    pdf = tmp_path / "escaneado_con_texto_pobre.pdf"
+    pdf.write_bytes(PDF_MINIMO)
+
+    # Primera llamada (texto): CTI sin bastidor → campos_faltantes no vacío
+    datos_incompletos = {"matricula": "5042HZM", "cet": "CET-001"}  # faltan dni_adquirente, dni_transmitente
+    # Segunda llamada (visión): CTI completo
+    datos_completos = {
+        "matricula": "5042HZM", "cet": "CET-001",
+        "dni_adquirente": "35306584C", "dni_transmitente": "14958073T",
+    }
+
+    cliente = MagicMock()
+    cliente.chat = MagicMock()
+    cliente.chat.completions = MagicMock()
+    # Primera llamada → texto incompleto; segunda → visión completa
+    cliente.chat.completions.create = AsyncMock(side_effect=[
+        _respuesta_openai("cti", 0.85, datos_incompletos),
+        _respuesta_openai("cti", 0.93, datos_completos),
+    ])
+
+    clf = ClasificadorOpenAI(client=cliente)
+
+    PNG_FAKE = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+    with (
+        patch("app.services.clasificador_openai._extraer_texto_pdf",
+              return_value="CERTIFICADO DE TRANSFERENCIA bastidor ilegible"),
+        patch("app.services.clasificador_openai._pdf_paginas_png", return_value=[PNG_FAKE]),
+    ):
+        resultado = await clf.clasificar(str(pdf))
+
+    # Se hicieron 2 llamadas: texto + visión
+    assert cliente.chat.completions.create.call_count == 2, (
+        f"Se esperaban 2 llamadas (texto + visión), hubo {cliente.chat.completions.create.call_count}"
+    )
+    # El resultado fusionado debe tener los campos de visión
+    assert resultado.datos_extraidos.get("dni_adquirente") == "35306584C"
+    assert resultado.datos_extraidos.get("matricula") == "5042HZM"
+
+
+@pytest.mark.asyncio
+async def test_no_reintento_cuando_extraccion_completa(tmp_path):
+    """Si texto extrae todos los campos, NO se reintenta por visión."""
+    pdf = tmp_path / "digital_completo.pdf"
+    pdf.write_bytes(PDF_MINIMO)
+
+    datos_completos = {
+        "matricula": "5042HZM", "cet": "CET-001",
+        "dni_adquirente": "35306584C", "dni_transmitente": "14958073T",
+    }
+    cliente = _cliente_mock("cti", 0.93, datos=datos_completos)
+    clf = ClasificadorOpenAI(client=cliente)
+
+    with patch("app.services.clasificador_openai._extraer_texto_pdf",
+               return_value="CERTIFICADO DE TRANSFERENCIA texto completo"):
+        resultado = await clf.clasificar(str(pdf))
+
+    # Solo 1 llamada: texto, sin reintento
+    assert cliente.chat.completions.create.call_count == 1
+    assert resultado.campos_faltantes == []
