@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     escalado_admin_min: int = 60
     email_administrativo: str = ""    # destinatario del escalado (último recurso)
 
+    # Telegram Bot para notificaciones de escalado al administrativo
+    telegram_bot_token: str = ""
+    telegram_chat_id_admin: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

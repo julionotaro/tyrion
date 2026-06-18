@@ -36,10 +36,10 @@ from app.models.persistencia import (
     TipoMensajeSaliente,
 )
 from app.schemas.clasificacion import ResultadoClasificacion
-from app.services.catalogo_documental import TipoTramite
+from app.services.catalogo_documental import TipoTramite, FamiliaTramite, SubtipoTramite
 from app.services.clasificador import ClasificadorDocumental
 from app.services.ingesta_email import AdjuntoEmail, EmailEntrante
-from app.services.motor_cotejo import EstadoChecklist, MotorCotejo
+from app.services.motor_cotejo import EstadoChecklist, MotorCotejo, RequisitoCotejo, resolver_checklist
 from app.services.cruce_planilla import CruceResult, ConfianzaCruce, MetodoCruce, cruzar_email_con_planilla
 from app.services.ingesta_planilla import PlanillaDia
 
@@ -227,6 +227,27 @@ class Pipeline:
         self._motor = motor or MotorCotejo()
         self._planilla = planilla  # planilla del día; None = sin planilla cargada
 
+    async def clasificar_adjuntos(
+        self,
+        email_entrante: EmailEntrante,
+    ) -> dict[str, ResultadoClasificacion]:
+        """Clasifica los adjuntos de un email sin correr el checklist.
+
+        Permite deducir tipo/subtipo antes de llamar a procesar_email con los
+        parámetros correctos (Corrección 0: flujo de subtipo en worker_email).
+        """
+        clasificaciones: dict[str, ResultadoClasificacion] = {}
+        for adjunto in email_entrante.adjuntos:
+            ruta = _guardar_adjunto_temporal(adjunto)
+            try:
+                clf_resultado = await self._clf.clasificar(ruta)
+                clasificaciones[adjunto.nombre] = clf_resultado
+            except Exception as exc:
+                logger.error("Error clasificando '%s': %s", adjunto.nombre, exc)
+            finally:
+                _limpiar_temporal(ruta)
+        return clasificaciones
+
     async def procesar_email(
         self,
         email_entrante: EmailEntrante,
@@ -237,6 +258,7 @@ class Pipeline:
         bastidor: str | None = None,
         nif_adquirente: str | None = None,
         no_telematico: bool = False,
+        subtipo_tramite: SubtipoTramite = SubtipoTramite.NINGUNO,
     ) -> ResultadoPipeline:
         """Procesa un email completo: clasifica adjuntos, coteja, prepara avisos.
 
@@ -308,7 +330,20 @@ class Pipeline:
             for clf in clasificaciones.values()
         }
 
-        estado = self._motor.evaluar_checklist(tipo_tramite, docs_por_requisito)
+        # Resolver requisitos con subtipo cuando se indica (p.ej. HERENCIA usa checklist distinto)
+        requisitos_resueltos: list[RequisitoCotejo] | None = None
+        if subtipo_tramite != SubtipoTramite.NINGUNO:
+            _familia_map = {
+                TipoTramite.TRANSFERENCIA: FamiliaTramite.TRANSFERENCIA,
+                TipoTramite.MATRICULACION: FamiliaTramite.MATRICULACION,
+                TipoTramite.BAJA: FamiliaTramite.BAJA,
+            }
+            familia = _familia_map.get(tipo_tramite)
+            if familia is not None:
+                checklist_resuelto = resolver_checklist(familia, subtipo=subtipo_tramite)
+                requisitos_resueltos = [RequisitoCotejo(r) for r in checklist_resuelto.requisitos]
+
+        estado = self._motor.evaluar_checklist(tipo_tramite, docs_por_requisito, requisitos=requisitos_resueltos)
         resultado.estado_checklist = estado
 
         # Vehículos no telemáticos (históricos ART.11 RD982/2024) van a Jefatura,

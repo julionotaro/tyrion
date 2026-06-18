@@ -20,17 +20,22 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Importación diferida para no ejecutar nada al importar main en tests
     from app.services.worker_email import run_email_worker
-    task = None
+    from app.services.worker_timers import run_timer_worker
+    tasks = []
     try:
-        task = asyncio.create_task(run_email_worker())
+        tasks.append(asyncio.create_task(run_email_worker()))
     except Exception:
         logger.warning(
             "Worker email no pudo arrancarse — IMAP puede no estar configurado. "
             "La carga manual sigue funcionando.",
             exc_info=True,
         )
+    try:
+        tasks.append(asyncio.create_task(run_timer_worker()))
+    except Exception:
+        logger.warning("Worker timers no pudo arrancarse.", exc_info=True)
     yield
-    if task is not None:
+    for task in tasks:
         task.cancel()
         try:
             await task

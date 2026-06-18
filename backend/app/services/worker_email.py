@@ -115,20 +115,27 @@ def _serializar_verificaciones(checklist, clasificaciones: dict) -> list[dict]:
         })
 
     for req in checklist.requisitos_evidencia:
+        nombre_req = req.replace("_", " ")
         verifs.append({
             "campo": req,
             "ok": False,
-            "descripcion": f"{req.replace('_', ' ').capitalize()} — evidencia compatible, no válido",
+            "descripcion": f"{nombre_req.capitalize()} — recibido pero insuficiente",
             "vals": [
-                {"doc": "Documento recibido", "val": req},
-                {"doc": "Tipo requerido", "val": req},
+                {"doc": "Documento recibido", "val": f"{req} (baja confianza)"},
+                {"doc": "Estado", "val": "Evidencia compatible — no válido"},
             ],
+            "aviso": (
+                f"El {nombre_req} fue recibido pero no pudo validarse "
+                f"(confianza insuficiente o campos incompletos). "
+                f"Por favor reenvíen el documento en mejor calidad o formato digital."
+            ),
         })
 
     for req in checklist.requisitos_rechazados:
         tipo_recibido = next(
-            (t for t, d in campos_por_tipo.items() if t != req), "desconocido"
+            (t for t in campos_por_tipo if t != req), "desconocido"
         )
+        nombre_req = req.replace("_", " ")
         verifs.append({
             "campo": req,
             "ok": False,
@@ -139,20 +146,25 @@ def _serializar_verificaciones(checklist, clasificaciones: dict) -> list[dict]:
             ],
             "aviso": (
                 f"El documento enviado no es del tipo requerido. "
-                f"Se necesita: {req.replace('_', ' ')}. "
+                f"Se necesita: {nombre_req}. "
                 f"Por favor, reenvíen el documento correcto."
             ),
         })
 
     for req in checklist.requisitos_faltantes:
+        nombre_req = req.replace("_", " ")
         verifs.append({
             "campo": req,
             "ok": False,
-            "descripcion": f"Falta {req.replace('_', ' ')} — no recibido",
+            "descripcion": f"Falta {nombre_req} — no recibido",
             "vals": [
                 {"doc": "Documento recibido", "val": "—"},
                 {"doc": "Tipo requerido", "val": req},
             ],
+            "aviso": (
+                f"No se recibió el {nombre_req}. "
+                f"Por favor envíenlo para completar el expediente."
+            ),
         })
 
     return verifs
@@ -313,23 +325,21 @@ async def run_email_worker(
                     len(email.adjuntos), tramite_id,
                 )
 
-                # Clasificar adjuntos mediante el pipeline y deducir tipo
-                # El pipeline clasifica internamente; extraemos los tipos del resultado
-                # usando un tramite_id provisional con tipo TRANSFERENCIA como fallback
-                # para poder llamar a procesar_email y obtener las clasificaciones.
+                # PASO 1: Clasificar adjuntos sin correr el checklist
+                clasificaciones = await _pipeline.clasificar_adjuntos(email)
+
+                # PASO 2: Deducir tipo y subtipo reales a partir de las clasificaciones
+                tipos_clasificados = [clf.tipo_detectado for clf in clasificaciones.values()]
+                deduccion = deducir_tipo_tramite(tipos_clasificados)
+
+                # PASO 3: Correr el pipeline completo con tipo y subtipo correctos
                 resultado = await _pipeline.procesar_email(
                     email_entrante=email,
-                    tipo_tramite=TipoTramite.TRANSFERENCIA,  # provisional; se corrige abajo
+                    tipo_tramite=deduccion.tipo or TipoTramite.TRANSFERENCIA,
                     tramite_id=tramite_id,
                     gestoria_email=email.remitente,
+                    subtipo_tramite=deduccion.subtipo or SubtipoTramite.NINGUNO,
                 )
-
-                # Deducir tipo real a partir de los tipos clasificados
-                tipos_clasificados = [
-                    clf.tipo_detectado
-                    for clf in resultado.clasificaciones.values()
-                ]
-                deduccion = deducir_tipo_tramite(tipos_clasificados)
 
                 # DEUDA CAPA 4: trámite guardado en memoria (Opción A).
                 # Si el servidor reinicia, los registros de email_procesado y avisos

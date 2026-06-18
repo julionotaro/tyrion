@@ -324,3 +324,68 @@ async def test_startup_completa_sin_bloqueo_con_imap_lento():
         f"Startup tardó {elapsed:.3f}s — el worker bloqueó el arranque de FastAPI"
     )
     assert startup_completado.is_set()
+
+
+@pytest.mark.asyncio
+async def test_herencia_usa_checklist_correcto():
+    """Email con documentos de herencia → checklist de herencia, no transferencia simple.
+
+    El checklist de herencia requiere: declaracion_responsable_fallecimiento, modelo_650, anexo_650.
+    El checklist de transferencia simple requiere: cti, modelo_620.
+    Con los docs de herencia, el motor debe resolver con el checklist de herencia
+    y detectar cti como VALIDO (ya que está en requisitos del cotejo).
+    """
+    from app.services.catalogo_documental import TipoDocumento, SubtipoTramite
+
+    # Clasificador que rota entre los tres tipos de herencia
+    tipos_herencia = [
+        TipoDocumento.DECLARACION_RESPONSABLE_FALLECIMIENTO,
+        TipoDocumento.MODELO_650,
+        TipoDocumento.ANEXO_650,
+    ]
+    call_count = 0
+
+    class ClasificadorHerencia:
+        async def clasificar(self, ruta: str) -> ResultadoClasificacion:
+            nonlocal call_count
+            tipo = tipos_herencia[call_count % len(tipos_herencia)]
+            call_count += 1
+            return ResultadoClasificacion(
+                tipo_detectado=tipo,
+                confianza_score=0.92,
+                confianza_nivel="ALTA",
+                datos_extraidos={"matricula": "9999 HER", "titular": "Ana López"},
+                justificacion=f"Mock herencia: {tipo.value}",
+            )
+
+    raw = _email_raw(
+        "<herencia-001@test>",
+        adjuntos=[
+            ("declaracion.pdf", b"contenido1"),
+            ("modelo650.pdf", b"contenido2"),
+            ("anexo650.pdf", b"contenido3"),
+        ],
+    )
+    fuente = FuenteEnMemoria([raw])
+    repo = RepositorioEnMemoria()
+    pipeline = Pipeline(repo=repo, clasificador=ClasificadorHerencia())
+
+    await _run_one_cycle(fuente, repo, pipeline)
+
+    tramites = registro_tramites.listar_tramites()
+    assert len(tramites) == 1
+    t = tramites[0]
+
+    # Debe deducirse como herencia
+    assert t["subtipo"] == "herencia", f"Subtipo esperado 'herencia', obtenido '{t['subtipo']}'"
+
+    # El checklist de herencia es: declaracion_responsable_fallecimiento, modelo_650, anexo_650
+    # Con los tres documentos presentes, el trámite debe estar completo (listo_dgt o en_revision)
+    # En ningún caso debe quedar pendiente por falta de cti o modelo_620
+    verificaciones = t.get("verificaciones", [])
+    campos_ok = {v["campo"] for v in verificaciones if v.get("ok")}
+    campos_fallidos = {v["campo"] for v in verificaciones if not v.get("ok")}
+
+    # CTI y modelo_620 NO deben aparecer como faltantes (son del checklist simple, no del de herencia)
+    assert "cti" not in campos_fallidos, "cti no debe ser requisito faltante en herencia"
+    assert "modelo_620" not in campos_fallidos, "modelo_620 no debe ser requisito faltante en herencia"
