@@ -381,6 +381,12 @@ class MotorCotejo:
                 lineas.append(f"  • {req}")
             lineas.append("")
 
+        if estado.requisitos_rechazados:
+            lineas.append("Documentos incorrectos que deben ser reemplazados:")
+            for req in estado.requisitos_rechazados:
+                lineas.append(f"  • {req}")
+            lineas.append("")
+
         lineas += [
             "Rogamos envíen la documentación a la mayor brevedad para poder",
             "completar el expediente.",

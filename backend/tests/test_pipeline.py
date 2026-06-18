@@ -80,7 +80,7 @@ async def test_email_sin_adjuntos_genera_aviso1():
         gestoria_email="g@gestor.es",
     )
     assert resultado.adjuntos_procesados == 0
-    # BAJA requiere permiso_circulacion + dni; ninguno llegó → aviso_1
+    # BAJA requiere dni + solicitud_baja; ninguno llegó → aviso_1
     assert len(resultado.mensajes_preparados) == 1
     assert resultado.mensajes_preparados[0].tipo == TipoMensajeSaliente.AVISO_1
 
@@ -144,7 +144,8 @@ async def test_adjunto_clasificado_valido_no_genera_aviso(tmp_path):
         )
 
     assert resultado.adjuntos_procesados == 3
-    # BAJA requiere permiso_circulacion + dni + solicitud_baja → todos → sin avisos
+    # BAJA requiere dni + solicitud_baja (permiso_circulacion es doc de salida, no requisito)
+    # Los 3 docs cumplen ambos requisitos → sin avisos
     assert resultado.mensajes_preparados == []
 
 
@@ -174,12 +175,12 @@ async def test_adjunto_faltante_genera_aviso1():
             matricula="1234ABC",
         )
 
-    # Falta permiso_circulacion → aviso_1 preparado
+    # Solo llega DNI, falta solicitud_baja → aviso_1 preparado
     assert len(resultado.mensajes_preparados) == 1
     msg = resultado.mensajes_preparados[0]
     assert msg.tipo == TipoMensajeSaliente.AVISO_1
     assert msg.destinatario == "g@gestor.es"
-    assert "permiso_circulacion" in msg.cuerpo
+    assert "solicitud_baja" in msg.cuerpo
     assert "1234ABC" in msg.cuerpo
 
 

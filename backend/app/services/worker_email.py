@@ -79,6 +79,85 @@ def _extraer_matricula_bastidor(clasificaciones: dict) -> tuple[str | None, str 
     return matricula, bastidor
 
 
+def _serializar_verificaciones(checklist, clasificaciones: dict) -> list[dict]:
+    """Convierte el EstadoChecklist y clasificaciones en la lista verificaciones[] del frontend.
+
+    Genera una tarjeta por requisito del checklist:
+    - ok=True si el requisito está validado
+    - ok=False si está rechazado o faltante (con vals[] para mostrar la discrepancia)
+    """
+    if checklist is None:
+        return []
+    verifs: list[dict] = []
+
+    # Índice tipo_detectado → campos extraídos del documento
+    campos_por_tipo: dict[str, dict] = {}
+    for clf in clasificaciones.values():
+        tipo = clf.tipo_detectado.value if clf.tipo_detectado else "desconocido"
+        campos_por_tipo[tipo] = clf.datos_extraidos or {}
+
+    for req in checklist.requisitos_validos:
+        datos = campos_por_tipo.get(req, {})
+        # Intentar obtener un valor representativo para mostrar
+        valor = (
+            datos.get("matricula")
+            or datos.get("bastidor")
+            or datos.get("num_bastidor")
+            or datos.get("dni")
+            or "presente"
+        )
+        verifs.append({
+            "campo": req,
+            "ok": True,
+            "descripcion": f"{req.replace('_', ' ').capitalize()} validado",
+            "valor": str(valor),
+            "docs": [req],
+        })
+
+    for req in checklist.requisitos_evidencia:
+        verifs.append({
+            "campo": req,
+            "ok": False,
+            "descripcion": f"{req.replace('_', ' ').capitalize()} — evidencia compatible, no válido",
+            "vals": [
+                {"doc": "Documento recibido", "val": req},
+                {"doc": "Tipo requerido", "val": req},
+            ],
+        })
+
+    for req in checklist.requisitos_rechazados:
+        tipo_recibido = next(
+            (t for t, d in campos_por_tipo.items() if t != req), "desconocido"
+        )
+        verifs.append({
+            "campo": req,
+            "ok": False,
+            "descripcion": f"Documento recibido no corresponde al tipo requerido ({req})",
+            "vals": [
+                {"doc": "Documento recibido", "val": tipo_recibido},
+                {"doc": "Tipo requerido", "val": req},
+            ],
+            "aviso": (
+                f"El documento enviado no es del tipo requerido. "
+                f"Se necesita: {req.replace('_', ' ')}. "
+                f"Por favor, reenvíen el documento correcto."
+            ),
+        })
+
+    for req in checklist.requisitos_faltantes:
+        verifs.append({
+            "campo": req,
+            "ok": False,
+            "descripcion": f"Falta {req.replace('_', ' ')} — no recibido",
+            "vals": [
+                {"doc": "Documento recibido", "val": "—"},
+                {"doc": "Tipo requerido", "val": req},
+            ],
+        })
+
+    return verifs
+
+
 def _construir_tramite_email(
     tramite_id: str,
     email: EmailEntrante,
@@ -165,6 +244,7 @@ def _construir_tramite_email(
         })
 
     matricula, bastidor = _extraer_matricula_bastidor(resultado_pipeline.clasificaciones)
+    verificaciones = _serializar_verificaciones(checklist, resultado_pipeline.clasificaciones)
 
     return {
         "id": tramite_id,
@@ -188,6 +268,7 @@ def _construir_tramite_email(
         "avisos_pendientes": avisos,
         "documentos_faltantes": faltantes,
         "motivo_deduccion": deduccion.motivo,
+        "verificaciones": verificaciones,
     }
 
 

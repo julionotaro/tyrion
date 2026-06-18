@@ -243,8 +243,9 @@ CHECKLIST_POR_TRAMITE: dict[TipoTramite, list[str]] = {
         "impuesto_matriculacion",
         "dni",
     ],
+    # CONFIRMADO cliente: permiso_circulacion es documento de SALIDA (lo imprime el Colegio).
+    # No es requisito de entrada para baja. Fase 3 confirmará documentos correctos con administrativa.
     TipoTramite.BAJA: [
-        "permiso_circulacion",
         "dni",
         "solicitud_baja",
     ],

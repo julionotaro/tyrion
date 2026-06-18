@@ -37,10 +37,11 @@ def test_documentos_con_extraccion_tienen_id():
 
 
 def test_extraccion_documento_existente():
-    resp = client.get("/api/documentos/doc-001/extraccion")
+    # doc-002 es CTI con campos extraídos completos
+    resp = client.get("/api/documentos/doc-002/extraccion")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["id"] == "doc-001"
+    assert data["id"] == "doc-002"
     assert "campos_extraidos" in data
     assert len(data["campos_extraidos"]) > 0
     assert "justificacion" in data
@@ -86,7 +87,7 @@ def test_archivo_documento_inexistente():
 
 def test_campos_extraidos_estados_validos():
     """Todos los campos extraídos deben tener estados reconocidos."""
-    for doc_id in ("doc-001", "doc-003", "doc-009", "doc-007"):
+    for doc_id in ("doc-002", "doc-003", "doc-009", "doc-007"):
         resp = client.get(f"/api/documentos/{doc_id}/extraccion")
         assert resp.status_code == 200
         for campo in resp.json()["campos_extraidos"]:

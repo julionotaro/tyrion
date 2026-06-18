@@ -174,15 +174,16 @@ def test_checklist_con_evidencia_compatible(motor):
 def test_checklist_con_documento_rechazado_escala_admin(motor):
     """Documento rechazado → debe_escalar_admin=True Y debe_pedir_gestoria=True.
     El motor detecta que eventualmente hay que escalar, pero el pipeline primero
-    pide aviso_1 a gestoría (T+0) y escala al admin solo tras T+60 via timers."""
+    pide aviso_1 a gestoría (T+0) y escala al admin solo tras T+60 via timers.
+    Usa solicitud_baja como requisito (permiso_circulacion es doc de salida, no entrada)."""
     docs = {
-        "permiso_circulacion": _clasificacion(TipoDocumento.HOJA_CAJA, 0.90),
+        "solicitud_baja": _clasificacion(TipoDocumento.HOJA_CAJA, 0.90),
         "dni": _clasificacion(TipoDocumento.DNI, 0.92),
     }
     estado = motor.evaluar_checklist(TipoTramite.BAJA, docs)
 
     assert not estado.completo
-    assert "permiso_circulacion" in estado.requisitos_rechazados
+    assert "solicitud_baja" in estado.requisitos_rechazados
     assert estado.debe_escalar_admin
     # BUG 1 fix: rechazados también van a gestoría primero (aviso_1 T+0)
     assert estado.debe_pedir_gestoria
@@ -267,29 +268,28 @@ def test_mensaje_menciona_evidencia_compatible(motor):
 # ---------- integración clasificador → motor (sin API) ----------
 
 def test_pipeline_completo_baja_con_discrepancia(motor):
-    """Simula el pipeline: la gestoría dice 'permiso' pero manda un CTI.
-    Motor detecta evidencia compatible y prepara mensaje a gestoría (no admin)."""
-    # CTI con confianza alta pero NO es el permiso_circulacion
+    """Simula el pipeline: la gestoría manda un CTI donde se pide solicitud_baja.
+    CTI no es tipo relacionado con solicitud_baja → RECHAZADO (no evidencia).
+    Motor activa pedir_gestoria (aviso_1) y también escalar_admin por rechazo."""
     clf_cti = ResultadoClasificacion(
         tipo_detectado=TipoDocumento.CTI,
         confianza_score=0.91,
         confianza_nivel="ALTA",
         discrepancia_con_declarado=True,
-        justificacion="Tarjeta ITV visible, no permiso de circulación.",
+        justificacion="CTI recibido donde se esperaba solicitud_baja.",
     )
     clf_dni = _clasificacion(TipoDocumento.DNI, 0.94)
 
     docs = {
-        "permiso_circulacion": clf_cti,
+        "solicitud_baja": clf_cti,
         "dni": clf_dni,
     }
     estado = motor.evaluar_checklist(TipoTramite.BAJA, docs)
 
     assert not estado.completo
-    assert "permiso_circulacion" in estado.requisitos_evidencia
+    assert "solicitud_baja" in estado.requisitos_rechazados
     assert estado.debe_pedir_gestoria
-    assert not estado.debe_escalar_admin
 
     mensaje = motor.preparar_mensaje_gestoria(estado, matricula="9999ZZZ")
     assert "9999ZZZ" in mensaje
-    assert "permiso_circulacion" in mensaje
+    assert "solicitud_baja" in mensaje

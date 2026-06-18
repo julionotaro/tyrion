@@ -150,25 +150,24 @@ async def test_transferencia_herencia_completa():
 
 @pytest.mark.asyncio
 async def test_documento_rechazado_genera_aviso_no_escalado():
-    """Hoja de caja en requisito permiso_circulacion → RECHAZADO → aviso_1, NO escalado directo."""
+    """Hoja de caja en requisito solicitud_baja → RECHAZADO → aviso_1, NO escalado directo.
+    Nota: permiso_circulacion es doc de salida, no requisito de entrada para BAJA."""
     motor = MotorCotejo()
-    from app.services.motor_cotejo import RequisitoCotejo
 
-    # Cotejo directo: hoja_caja para requisito permiso_circulacion → RECHAZADO
+    # Cotejo directo: hoja_caja para requisito solicitud_baja → RECHAZADO
     docs = {
-        "permiso_circulacion": _clf_result(TipoDocumento.HOJA_CAJA, 0.90),
+        "solicitud_baja": _clf_result(TipoDocumento.HOJA_CAJA, 0.90),
         "dni": _clf_result(TipoDocumento.DNI, 0.92),
-        "solicitud_baja": _clf_result(TipoDocumento.SOLICITUD_BAJA, 0.88),
     }
     estado = motor.evaluar_checklist(TipoTramite.BAJA, docs)
 
     assert not estado.completo
-    assert "permiso_circulacion" in estado.requisitos_rechazados
+    assert "solicitud_baja" in estado.requisitos_rechazados
     assert estado.debe_escalar_admin  # motor detecta que eventualmente hay que escalar
     # BUG 1 fix: rechazado también activa pedir_gestoria (aviso_1 primero)
     assert estado.debe_pedir_gestoria
 
-    # En el pipeline, aviso_1 se prepara para rechazados también
+    # El pipeline también genera aviso_1 cuando hay faltantes (solicitud_baja no enviada)
     repo = RepositorioEnMemoria()
     clf = _clf_mock()
     pipeline = Pipeline(repo=repo, clasificador=clf, motor=MotorCotejo())
@@ -176,18 +175,17 @@ async def test_documento_rechazado_genera_aviso_no_escalado():
     clfs = [
         _clf_result(TipoDocumento.HOJA_CAJA, 0.90),
         _clf_result(TipoDocumento.DNI, 0.92),
-        _clf_result(TipoDocumento.SOLICITUD_BAJA, 0.88),
     ]
     with patch.object(clf, "clasificar", side_effect=clfs):
         resultado = await pipeline.procesar_email(
-            email_entrante=_email("hoja_caja.pdf", "dni.pdf", "solicitud.pdf"),
+            email_entrante=_email("hoja_caja.pdf", "dni.pdf"),
             tipo_tramite=TipoTramite.BAJA,
             tramite_id="t-rechazado",
             gestoria_email="g@gestor.es",
         )
 
     assert resultado.ok
-    # Debe haber aviso_1 (pedir doc correcto a gestoría)
+    # Debe haber aviso_1 (solicitud_baja faltante)
     assert any(m.tipo == TipoMensajeSaliente.AVISO_1 for m in resultado.mensajes_preparados)
     # NUNCA escalado directo sin avisos previos
     assert not any(m.tipo == TipoMensajeSaliente.ESCALADO for m in resultado.mensajes_preparados)

@@ -23,22 +23,14 @@ DOCUMENTOS_PRUEBA: dict[str, dict[str, Any]] = {
     "doc-001": {
         "id": "doc-001",
         "tramite_id": "t-001",
-        "nombre": "permiso.pdf",
-        "tipo_detectado": "permiso_circulacion",
+        "nombre": "solicitud_entrada.pdf",
+        "tipo_detectado": "sin_determinar",
         "validez": "VALIDO",
-        "confianza": "ALTA",
-        "confianza_score": 0.97,
-        # Simulación de PDF: URL de un PDF de muestra público
-        "archivo_url": "/static/muestra_permiso.pdf",
-        "tiene_archivo": False,  # en pruebas no hay PDF real
-        "campos_extraidos": [
-            {"campo": "matricula",          "valor": "1234 ABC",     "estado": "valido"},
-            {"campo": "titular",            "valor": "Juan García",  "estado": "valido"},
-            {"campo": "marca_modelo",       "valor": "SEAT Ibiza",   "estado": "valido"},
-            {"campo": "fecha_matriculacion","valor": "15/03/2018",   "estado": "valido"},
-            {"campo": "num_bastidor",       "valor": "VS6RFD000X1234","estado": "valido"},
-        ],
-        "justificacion": "Encabezado 'Permiso de Circulación' visible. Todos los campos presentes.",
+        "confianza": "BAJA",
+        "confianza_score": 0.40,
+        "tiene_archivo": False,
+        "campos_extraidos": [],
+        "justificacion": "Email recibido — documento pendiente de clasificar. Estado: recibido.",
     },
     "doc-002": {
         "id": "doc-002",
@@ -239,9 +231,9 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(5),
         "alerta": False,
         "documentos": [
-            {"id": "doc-001", "nombre": "permiso.pdf",
-             "tipo_detectado": "permiso_circulacion",
-             "validez": "VALIDO", "confianza": "ALTA"},
+            {"id": "doc-001", "nombre": "solicitud_entrada.pdf",
+             "tipo_detectado": "sin_determinar",
+             "validez": "VALIDO", "confianza": "BAJA"},
         ],
         "historial": [
             {"momento": _hace(5), "evento": "Email recibido de lopez@gestorias.es",
@@ -273,6 +265,22 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
              "actor": "tyrion"},
         ],
         "avisos_pendientes": [],
+        "verificaciones": [
+            {
+                "campo": "matricula",
+                "ok": True,
+                "descripcion": "Matrícula 5678 DEF coincide en CTI y modelo 620",
+                "valor": "5678 DEF",
+                "docs": ["CTI", "Modelo 620"],
+            },
+            {
+                "campo": "cet",
+                "ok": True,
+                "descripcion": "CET presente en CTI",
+                "valor": "CET-2026-002",
+                "docs": ["CTI"],
+            },
+        ],
     },
     {
         "id": "t-003",
@@ -334,8 +342,8 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(25),
         "alerta": False,
         "documentos": [
-            {"id": None, "nombre": "permiso.pdf",
-             "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "doc_baja.pdf",
+             "tipo_detectado": "sin_determinar",
              "validez": "VALIDO", "confianza": "ALTA"},
         ],
         "historial": [
@@ -357,8 +365,8 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(120),
         "alerta": False,
         "documentos": [
-            {"id": None, "nombre": "permiso.pdf",
-             "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "solicitud_matriculacion.pdf",
+             "tipo_detectado": "solicitud_matriculacion",
              "validez": "VALIDO", "confianza": "ALTA"},
             {"id": None, "nombre": "ficha.pdf",
              "tipo_detectado": "ficha_tecnica",
@@ -378,6 +386,23 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
              "actor": "admin"},
         ],
         "avisos_pendientes": [],
+        "verificaciones": [
+            {
+                "campo": "bastidor",
+                "ok": True,
+                "descripcion": "Bastidor VF1RFD00060123456 presente en ficha técnica",
+                "valor": "VF1RFD00060123456",
+                "presente": True,
+                "doc": "Ficha técnica",
+            },
+            {
+                "campo": "justificante_pago",
+                "ok": True,
+                "descripcion": "Justificante de pago de tasas presente",
+                "valor": "presente",
+                "docs": ["Justificante pago"],
+            },
+        ],
     },
     {
         "id": "t-006",
@@ -390,8 +415,8 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "fecha_entrada": _hace(180),
         "alerta": False,
         "documentos": [
-            {"id": None, "nombre": "permiso.pdf",
-             "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "cti.pdf",
+             "tipo_detectado": "cti",
              "validez": "VALIDO", "confianza": "ALTA"},
             {"id": None, "nombre": "modelo620.pdf",
              "tipo_detectado": "modelo_620",
@@ -410,6 +435,22 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
              "actor": "admin"},
         ],
         "avisos_pendientes": [],
+        "verificaciones": [
+            {
+                "campo": "matricula",
+                "ok": True,
+                "descripcion": "Matrícula 7890 MNO coincide en CTI y modelo 620",
+                "valor": "7890 MNO",
+                "docs": ["CTI", "Modelo 620"],
+            },
+            {
+                "campo": "cet",
+                "ok": True,
+                "descripcion": "CET presente en CTI",
+                "valor": "CET-2026-006",
+                "docs": ["CTI"],
+            },
+        ],
     },
     {
         "id": "t-007",
@@ -423,8 +464,8 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         "alerta": False,
         "num_comprobante_dgt": "DGT-2026-00123",
         "documentos": [
-            {"id": None, "nombre": "permiso.pdf",
-             "tipo_detectado": "permiso_circulacion",
+            {"id": None, "nombre": "cti.pdf",
+             "tipo_detectado": "cti",
              "validez": "VALIDO", "confianza": "ALTA"},
             {"id": None, "nombre": "modelo620.pdf",
              "tipo_detectado": "modelo_620",
@@ -445,6 +486,22 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
              "actor": "admin"},
         ],
         "avisos_pendientes": [],
+        "verificaciones": [
+            {
+                "campo": "matricula",
+                "ok": True,
+                "descripcion": "Matrícula 2345 PQR coincide en CTI y modelo 620",
+                "valor": "2345 PQR",
+                "docs": ["CTI", "Modelo 620"],
+            },
+            {
+                "campo": "cet",
+                "ok": True,
+                "descripcion": "CET presente en CTI",
+                "valor": "CET-2026-007",
+                "docs": ["CTI"],
+            },
+        ],
     },
     {
         "id": "t-008",
@@ -472,6 +529,22 @@ TRAMITES_PRUEBA: list[dict[str, Any]] = [
         ],
         "avisos_pendientes": [
             {"tipo": "escalado", "enviado_at": _hace(74), "requisito": "permiso_circulacion"},
+        ],
+        "verificaciones": [
+            {
+                "campo": "tipo_documento",
+                "ok": False,
+                "descripcion": "Documento recibido no corresponde al tipo requerido",
+                "vals": [
+                    {"doc": "Documento recibido", "val": "hoja_caja"},
+                    {"doc": "Tipo requerido", "val": "permiso_circulacion"},
+                ],
+                "aviso": (
+                    "El documento enviado (hoja_caja.pdf) no es el tipo requerido. "
+                    "Se necesita el permiso de circulación. "
+                    "Por favor, reenvíen el documento correcto."
+                ),
+            },
         ],
     },
 ]
