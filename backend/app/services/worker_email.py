@@ -29,6 +29,7 @@ from app.services.catalogo_documental import TipoTramite, SubtipoTramite
 from app.services.deduccion_tipo import deducir_tipo_tramite
 from app.services.ingesta_email import AdjuntoEmail, EmailEntrante, FuenteCorreo, IngestaEmail
 from app.services.pipeline import Pipeline, RepositorioEnMemoria
+from app.services.storage import guardar_archivo
 from app.api.store import DOCUMENTOS_CARGA
 from app.services import registro_tramites
 
@@ -110,6 +111,9 @@ def _construir_tramite_email(
         for t in checklist.requisitos_faltantes:
             validez_por_tipo.setdefault(t, "FALTANTE")
 
+    # Índice nombre → adjunto para guardar el archivo original
+    adjunto_por_nombre = {a.nombre: a for a in email.adjuntos}
+
     docs = []
     for i, (nombre, clf) in enumerate(resultado_pipeline.clasificaciones.items()):
         doc_id = f"{tramite_id}-doc-{i}"
@@ -119,6 +123,17 @@ def _construir_tramite_email(
             {"campo": k, "valor": str(v), "estado": "valido"}
             for k, v in (clf.datos_extraidos or {}).items()
         ]
+
+        # Guardar el archivo original en storage (mismo mecanismo que carga manual)
+        tiene_archivo = False
+        adjunto = adjunto_por_nombre.get(nombre)
+        if adjunto is not None and adjunto.contenido:
+            try:
+                guardar_archivo(doc_id, adjunto.contenido, nombre, adjunto.content_type)
+                tiene_archivo = True
+            except Exception as exc:
+                logger.warning("No se pudo guardar adjunto '%s' doc_id=%s: %s", nombre, doc_id, exc)
+
         doc_entry = {
             "id": doc_id,
             "tramite_id": tramite_id,
@@ -127,7 +142,7 @@ def _construir_tramite_email(
             "validez": validez,
             "confianza": clf.confianza_nivel,
             "confianza_score": clf.confianza_score,
-            "tiene_archivo": False,
+            "tiene_archivo": tiene_archivo,
             "campos_extraidos": campos,
             "justificacion": clf.justificacion or "",
         }

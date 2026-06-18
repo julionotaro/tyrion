@@ -14,9 +14,10 @@ class Settings(BaseSettings):
     clasificador_model: str = "claude-haiku-4-5-20251001"
     razonador_model: str = "claude-opus-4-8"
 
-    # OpenAI API (clasificador alternativo con visión gpt-4o-mini)
+    # OpenAI API (clasificador alternativo con visión gpt-4o-mini / gpt-4o)
     openai_api_key: str = ""
-    clasificador_openai_model: str = "gpt-4o-mini"
+    clasificador_openai_model: str = "gpt-4o-mini"       # ruta texto (barata, exacta)
+    clasificador_openai_model_vision: str = "gpt-4o"     # ruta visión/escaneo (mejor OCR)
 
     # Umbrales de confianza
     confianza_alta: float = 0.85

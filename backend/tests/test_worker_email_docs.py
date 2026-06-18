@@ -293,3 +293,76 @@ async def test_extraccion_doc_accesible_via_api():
     data = resp_ext.json()
     assert data["tramite_id"] == tramite_id
     assert len(data["campos_extraidos"]) > 0
+
+
+# ── Tests: storage (CAMBIO 4) ──────────────────────────────────────────────────
+
+def test_tiene_archivo_true_tras_guardar():
+    """Tras _construir_tramite_email, DOCUMENTOS_CARGA tiene tiene_archivo=True."""
+    tramite_id = "test-tramite-uuid-0010"
+    adjunto = AdjuntoEmail(nombre="cti.pdf", contenido=b"%PDF-1.4", content_type="application/pdf")
+    email_e = EmailEntrante(
+        message_id="<test-010>",
+        remitente="g@test.es",
+        asunto="Test archivo",
+        fecha="2026-06-18T10:00:00+00:00",
+        adjuntos=[adjunto],
+    )
+    clfs = {"cti.pdf": _clf_resultado()}
+    resultado = _resultado_pipeline_mock(clfs)
+
+    _construir_tramite_email(tramite_id, email_e, _deduccion_mock(), resultado)
+
+    doc_id = f"{tramite_id}-doc-0"
+    assert doc_id in DOCUMENTOS_CARGA
+    assert DOCUMENTOS_CARGA[doc_id]["tiene_archivo"] is True
+
+
+def test_archivo_recuperable_via_storage():
+    """El archivo guardado por _construir_tramite_email se puede recuperar via storage."""
+    from app.services.storage import obtener_archivo
+
+    tramite_id = "test-tramite-uuid-0011"
+    contenido_pdf = b"%PDF-1.4 test content"
+    adjunto = AdjuntoEmail(nombre="modelo620.pdf", contenido=contenido_pdf, content_type="application/pdf")
+    email_e = EmailEntrante(
+        message_id="<test-011>",
+        remitente="g@test.es",
+        asunto="Test storage",
+        fecha="2026-06-18T10:00:00+00:00",
+        adjuntos=[adjunto],
+    )
+    clfs = {"modelo620.pdf": _clf_resultado(TipoDocumento.MODELO_620)}
+    resultado = _resultado_pipeline_mock(clfs)
+
+    _construir_tramite_email(tramite_id, email_e, _deduccion_mock(), resultado)
+
+    doc_id = f"{tramite_id}-doc-0"
+    contenido_leido, mime = obtener_archivo(doc_id)
+    assert contenido_leido == contenido_pdf
+    assert mime == "application/pdf"
+
+
+@pytest.mark.asyncio
+async def test_tiene_archivo_via_api_endpoint():
+    """Tras ciclo completo, /api/documentos/{id}/archivo devuelve el PDF."""
+    crudos = [_email_raw("<msg-archivo-001>", adjuntos=[("cti.pdf", b"%PDF-1.4 real")])]
+    fuente = FuenteEnMemoria(crudos)
+    repo = RepositorioEnMemoria()
+    clf = ClasificadorMock()
+    pipeline = _pipeline_con_mock(clf, repo)
+
+    await _run_one_cycle(fuente, repo, pipeline)
+
+    tramites = registro_tramites.listar_tramites()
+    tramite_id = tramites[0]["id"]
+
+    resp_docs = client.get(f"/api/tramites/{tramite_id}/documentos")
+    docs = resp_docs.json()
+    doc_con_archivo = next((d for d in docs if d["tiene_extraccion"]), None)
+    assert doc_con_archivo is not None
+
+    resp_archivo = client.get(f"/api/documentos/{doc_con_archivo['id']}/archivo")
+    assert resp_archivo.status_code == 200
+    assert resp_archivo.headers["content-type"].startswith("application/pdf")
+    assert resp_archivo.content == b"%PDF-1.4 real"

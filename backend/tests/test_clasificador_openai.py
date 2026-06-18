@@ -14,7 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from app.services.clasificador_openai import ClasificadorOpenAI, _extraer_texto_pdf, _pdf_primera_pagina_png
+from app.services.clasificador_openai import ClasificadorOpenAI, _extraer_texto_pdf, _pdf_paginas_png
 from app.services.catalogo_documental import TipoDocumento
 
 PDF_MINIMO = b"%PDF-1.4 1 0 obj<</Type/Catalog>>stream\nendstream\nendobj"
@@ -95,7 +95,7 @@ async def test_clasificador_openai_fallback_vision(tmp_path):
     PNG_FAKE = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
     with (
         patch("app.services.clasificador_openai._extraer_texto_pdf", return_value=None),
-        patch("app.services.clasificador_openai._pdf_primera_pagina_png", return_value=PNG_FAKE),
+        patch("app.services.clasificador_openai._pdf_paginas_png", return_value=[PNG_FAKE]),
     ):
         resultado = await clf.clasificar(str(pdf))
 
@@ -170,6 +170,57 @@ async def test_clasificador_openai_tipo_desconocido(tmp_path):
         resultado = await clf.clasificar(str(pdf))
 
     assert resultado.tipo_detectado == TipoDocumento.DESCONOCIDO
+
+
+@pytest.mark.asyncio
+async def test_vision_usa_model_vision(tmp_path):
+    """PDF escaneado → ruta visión usa model_vision (gpt-4o), no el modelo de texto."""
+    pdf = tmp_path / "escaneado.pdf"
+    pdf.write_bytes(PDF_MINIMO)
+
+    datos_permiso = {"matricula": "1234ABC", "titular": "Ana", "bastidor": "WBA12345"}
+    cliente = _cliente_mock("permiso_circulacion", 0.88, datos=datos_permiso)
+    clf = ClasificadorOpenAI(client=cliente)
+    model_vision = clf._model_vision
+
+    PNG_FAKE = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+    with (
+        patch("app.services.clasificador_openai._extraer_texto_pdf", return_value=None),
+        patch("app.services.clasificador_openai._pdf_paginas_png", return_value=[PNG_FAKE]),
+    ):
+        await clf.clasificar(str(pdf))
+
+    call_kwargs = cliente.chat.completions.create.call_args.kwargs
+    assert call_kwargs["model"] == model_vision, (
+        f"Se esperaba model_vision={model_vision}, se usó {call_kwargs['model']}"
+    )
+    assert call_kwargs["max_tokens"] == 1024, "max_tokens debe ser 1024 en ruta visión"
+
+
+@pytest.mark.asyncio
+async def test_vision_multipagina_manda_n_imagenes(tmp_path):
+    """PDF de 3 páginas escaneadas → se mandan 3 image_url al modelo."""
+    pdf = tmp_path / "multipagina.pdf"
+    pdf.write_bytes(PDF_MINIMO)
+
+    datos_permiso = {"matricula": "9999XYZ", "titular": "Carlos", "bastidor": "VF300001"}
+    cliente = _cliente_mock("permiso_circulacion", 0.87, datos=datos_permiso)
+    clf = ClasificadorOpenAI(client=cliente)
+
+    PNG_FAKE = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+    tres_paginas = [PNG_FAKE, PNG_FAKE, PNG_FAKE]
+    with (
+        patch("app.services.clasificador_openai._extraer_texto_pdf", return_value=None),
+        patch("app.services.clasificador_openai._pdf_paginas_png", return_value=tres_paginas),
+    ):
+        resultado = await clf.clasificar(str(pdf))
+
+    assert resultado.tipo_detectado == TipoDocumento.PERMISO_CIRCULACION
+    call_kwargs = cliente.chat.completions.create.call_args.kwargs
+    msgs = call_kwargs["messages"]
+    user_content = next(m["content"] for m in msgs if m["role"] == "user")
+    image_parts = [p for p in user_content if p.get("type") == "image_url"]
+    assert len(image_parts) == 3, f"Se esperaban 3 imágenes, se mandaron {len(image_parts)}"
 
 
 def test_extraer_texto_pdf_bytes_invalidos():

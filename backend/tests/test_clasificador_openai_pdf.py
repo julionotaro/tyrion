@@ -81,7 +81,7 @@ async def test_pdf_sin_texto_convierte_a_png_no_pdf(tmp_path):
 
     with (
         patch("app.services.clasificador_openai._extraer_texto_pdf", return_value=None),
-        patch("app.services.clasificador_openai._pdf_primera_pagina_png", return_value=PNG_FAKE),
+        patch("app.services.clasificador_openai._pdf_paginas_png", return_value=[PNG_FAKE]),
     ):
         resultado = await clf.clasificar(str(pdf))
 

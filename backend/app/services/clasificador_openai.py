@@ -46,7 +46,7 @@ def _construir_prompt_sistema() -> str:
     )
     return f"""Eres el clasificador documental de una gestoría de trámites de vehículos ante la DGT española.
 
-Tu tarea: identificar QUÉ ES un documento, con un nivel de confianza honesto.
+Tu tarea tiene DOS partes igual de importantes: (1) identificar QUÉ ES el documento, y (2) EXTRAER con precisión los campos de datos. La extracción es tan importante como la clasificación.
 
 TIPOS DE DOCUMENTO QUE RECONOCES:
 {rasgos}
@@ -62,6 +62,7 @@ REGLAS CRÍTICAS:
 2. Si no estás seguro, baja la confianza. Confianza honesta de 0.5 > falso 0.9.
 3. Extrae EXACTAMENTE los campos listados para el tipo que detectes. Usa null para los que no aparezcan.
 4. Si no encaja en ningún tipo, devuelve "desconocido" con baja confianza.
+5. Para documentos escaneados o de baja calidad, esfuérzate en leer números de identificación (DNI/NIF, matrícula, bastidor/VIN). Si un carácter es ambiguo, da tu mejor lectura y refléjalo bajando ligeramente la confianza, pero NO dejes el campo vacío si el dato es visible.
 
 Responde ÚNICAMENTE con un objeto JSON, sin texto adicional ni markdown:
 {{
@@ -91,23 +92,28 @@ def _extraer_texto_pdf(contenido: bytes) -> str | None:
         return None
 
 
-def _pdf_primera_pagina_png(contenido: bytes) -> bytes | None:
-    """Convierte la primera página de un PDF a PNG via PyMuPDF. Devuelve None si falla."""
+def _pdf_paginas_png(contenido: bytes, max_paginas: int = 4) -> list[bytes]:
+    """Convierte hasta max_paginas de un PDF a PNG via PyMuPDF a 200 DPI.
+
+    Devuelve lista vacía si falla o fitz no está instalado.
+    """
     try:
         import fitz  # PyMuPDF
     except BaseException:
-        return None
+        return []
     try:
         doc = fitz.open(stream=contenido, filetype="pdf")
         try:
-            pix = doc.load_page(0).get_pixmap(dpi=150)
-            img_bytes = pix.tobytes("png")
+            paginas = []
+            for i in range(min(max_paginas, doc.page_count)):
+                pix = doc.load_page(i).get_pixmap(dpi=200)
+                paginas.append(pix.tobytes("png"))
         finally:
             doc.close()
-        return img_bytes
+        return paginas
     except Exception as exc:
         logger.debug("PyMuPDF pdf→png falló: %s", exc)
-        return None
+        return []
 
 
 def _nivel_desde_score(score: float) -> str:
@@ -194,6 +200,7 @@ class ClasificadorOpenAI:
             from openai import AsyncOpenAI
             self._client = AsyncOpenAI(api_key=settings.openai_api_key)
         self._model = settings.clasificador_openai_model
+        self._model_vision = settings.clasificador_openai_model_vision
 
     async def clasificar(
         self,
@@ -222,11 +229,12 @@ class ClasificadorOpenAI:
                     resultado.confianza_score,
                 )
                 return resultado
-            # 1c. PDF sin texto (escaneado): convertir primera página a PNG
-            img_bytes = _pdf_primera_pagina_png(contenido)
-            if img_bytes:
-                return await self._clasificar_vision_bytes(img_bytes, "image/png", tipo_declarado, ruta_archivo)
-            # Último recurso: si fitz tampoco puede rendir PNG, error descriptivo
+            # 1c. PDF escaneado: convertir todas las páginas (hasta 4) a PNG con 200 DPI
+            paginas = _pdf_paginas_png(contenido)
+            if paginas:
+                return await self._clasificar_vision_bytes(
+                    paginas, "image/png", tipo_declarado, ruta_archivo,
+                )
             raise ValueError(
                 f"No se pudo extraer texto ni convertir a imagen el PDF '{Path(ruta_archivo).name}'. "
                 "Comprueba que PyMuPDF (fitz) está instalado."
@@ -237,7 +245,7 @@ class ClasificadorOpenAI:
                 ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                 ".webp": "image/webp", ".gif": "image/gif",
             }[ext]
-            return await self._clasificar_vision_bytes(contenido, mime, tipo_declarado, ruta_archivo)
+            return await self._clasificar_vision_bytes([contenido], mime, tipo_declarado, ruta_archivo)
 
         raise ValueError(f"Tipo de archivo no soportado: {ext}")
 
@@ -255,37 +263,46 @@ class ClasificadorOpenAI:
 
     async def _clasificar_vision_bytes(
         self,
-        img_bytes: bytes,
+        imagenes: list[bytes],
         mime: str,
         tipo_declarado: str | None,
         ruta_original: str = "",
     ) -> ResultadoClasificacion:
-        """Manda bytes de imagen (PNG/JPG — NUNCA PDF) a la API de visión de OpenAI."""
+        """Manda una o varias imágenes (PNG/JPG — NUNCA PDF) al modelo de visión.
+
+        Usa self._model_vision (gpt-4o por defecto) para mejor OCR en escaneos.
+        Manda todas las páginas como múltiples image_url en el mismo mensaje de usuario.
+        """
         hint = (
             f"\n\nEl remitente lo declaró como '{tipo_declarado}', "
             "pero verifica por ti mismo."
             if tipo_declarado else ""
         )
-        b64 = base64.standard_b64encode(img_bytes).decode()
-        url = f"data:{mime};base64,{b64}"
+        contenido_usuario: list[dict] = []
+        for img_bytes in imagenes:
+            b64 = base64.standard_b64encode(img_bytes).decode()
+            url = f"data:{mime};base64,{b64}"
+            contenido_usuario.append({"type": "image_url", "image_url": {"url": url}})
+        paginas_str = f"{len(imagenes)} página(s)" if len(imagenes) > 1 else "este documento"
+        contenido_usuario.append(
+            {"type": "text", "text": f"Clasifica {paginas_str}.{hint}"}
+        )
 
         resp = await self._client.chat.completions.create(
-            model=self._model,
+            model=self._model_vision,
             messages=[
                 {"role": "system", "content": _construir_prompt_sistema()},
-                {"role": "user", "content": [
-                    {"type": "image_url", "image_url": {"url": url}},
-                    {"type": "text", "text": f"Clasifica este documento.{hint}"},
-                ]},
+                {"role": "user", "content": contenido_usuario},
             ],
-            max_tokens=512,
+            max_tokens=1024,
             temperature=0,
         )
         texto = resp.choices[0].message.content or ""
         resultado = _parsear_respuesta(texto, tipo_declarado)
         nombre = Path(ruta_original).name if ruta_original else "imagen"
         logger.info(
-            "Clasificador OpenAI (visión) procesó %s → %s (confianza %.2f)",
-            nombre, resultado.tipo_detectado.value, resultado.confianza_score,
+            "Clasificador OpenAI (visión/%s, %d pág.) procesó %s → %s (confianza %.2f)",
+            self._model_vision, len(imagenes), nombre,
+            resultado.tipo_detectado.value, resultado.confianza_score,
         )
         return resultado
