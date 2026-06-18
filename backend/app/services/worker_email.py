@@ -29,6 +29,7 @@ from app.services.catalogo_documental import TipoTramite, SubtipoTramite
 from app.services.deduccion_tipo import deducir_tipo_tramite
 from app.services.ingesta_email import AdjuntoEmail, EmailEntrante, FuenteCorreo, IngestaEmail
 from app.services.pipeline import Pipeline, RepositorioEnMemoria
+from app.api.store import DOCUMENTOS_CARGA
 from app.services import registro_tramites
 
 logger = logging.getLogger(__name__)
@@ -61,13 +62,32 @@ def _estado_tramite(resultado_pipeline) -> str:
     return "en_revision"
 
 
+def _extraer_matricula_bastidor(clasificaciones: dict) -> tuple[str | None, str | None]:
+    """Extrae matrícula y bastidor de los campos clasificados de los documentos."""
+    matricula = None
+    bastidor = None
+    for clf in clasificaciones.values():
+        datos = clf.datos_extraidos or {}
+        if matricula is None:
+            matricula = datos.get("matricula") or None
+        if bastidor is None:
+            bastidor = datos.get("bastidor") or datos.get("num_bastidor") or None
+        if matricula and bastidor:
+            break
+    return matricula, bastidor
+
+
 def _construir_tramite_email(
     tramite_id: str,
     email: EmailEntrante,
     deduccion,
     resultado_pipeline,
 ) -> dict:
-    """Construye el dict de trámite con forma idéntica a carga manual."""
+    """Construye el dict de trámite con forma idéntica a carga manual.
+
+    También registra cada documento en DOCUMENTOS_CARGA para que
+    /api/documentos/{id}/extraccion los sirva.
+    """
     ahora = datetime.now(timezone.utc).isoformat()
     estado = _estado_tramite(resultado_pipeline)
     alerta = estado in ("pendiente_gestoria", "en_revision", "pendiente_jefatura")
@@ -75,13 +95,49 @@ def _construir_tramite_email(
     tipo_str = deduccion.tipo.value if deduccion.tipo else "SIN_DETERMINAR"
     subtipo_str = _SUBTIPO_STR.get(deduccion.subtipo, "ninguno")
 
+    checklist = resultado_pipeline.estado_checklist
+    faltantes = checklist.requisitos_faltantes if checklist else []
+
+    # Construir la validez por tipo desde el checklist
+    validez_por_tipo: dict[str, str] = {}
+    if checklist:
+        for t in checklist.requisitos_validos:
+            validez_por_tipo[t] = "VALIDO"
+        for t in checklist.requisitos_evidencia:
+            validez_por_tipo.setdefault(t, "EVIDENCIA_COMPATIBLE")
+        for t in checklist.requisitos_rechazados:
+            validez_por_tipo.setdefault(t, "RECHAZADO")
+        for t in checklist.requisitos_faltantes:
+            validez_por_tipo.setdefault(t, "FALTANTE")
+
     docs = []
-    for nombre, clf in resultado_pipeline.clasificaciones.items():
-        docs.append({
+    for i, (nombre, clf) in enumerate(resultado_pipeline.clasificaciones.items()):
+        doc_id = f"{tramite_id}-doc-{i}"
+        tipo_doc = clf.tipo_detectado.value
+        validez = validez_por_tipo.get(tipo_doc, "VALIDO" if clf.confianza_score >= 0.7 else "BAJA_CONFIANZA")
+        campos = [
+            {"campo": k, "valor": str(v), "estado": "valido"}
+            for k, v in (clf.datos_extraidos or {}).items()
+        ]
+        doc_entry = {
+            "id": doc_id,
+            "tramite_id": tramite_id,
             "nombre": nombre,
-            "tipo_detectado": clf.tipo_detectado.value,
+            "tipo_detectado": tipo_doc,
+            "validez": validez,
             "confianza": clf.confianza_nivel,
-            "estado": "valido" if clf.confianza_score >= 0.7 else "baja_confianza",
+            "confianza_score": clf.confianza_score,
+            "tiene_archivo": False,
+            "campos_extraidos": campos,
+            "justificacion": clf.justificacion or "",
+        }
+        DOCUMENTOS_CARGA[doc_id] = doc_entry
+        docs.append({
+            "id": doc_id,
+            "nombre": nombre,
+            "tipo_detectado": tipo_doc,
+            "validez": validez,
+            "confianza": clf.confianza_nivel,
         })
 
     avisos = []
@@ -92,16 +148,15 @@ def _construir_tramite_email(
             "requisito": msg.asunto,
         })
 
-    checklist = resultado_pipeline.estado_checklist
-    faltantes = checklist.requisitos_faltantes if checklist else []
+    matricula, bastidor = _extraer_matricula_bastidor(resultado_pipeline.clasificaciones)
 
     return {
         "id": tramite_id,
         "tipo": tipo_str,
         "subtipo": subtipo_str,
-        "matricula": None,
-        "bastidor": None,
-        "gestoria": email.remitente,       # remitente como texto si no hay match en DB
+        "matricula": matricula,
+        "bastidor": bastidor,
+        "gestoria": email.remitente,
         "gestoria_email": email.remitente,
         "estado": estado,
         "fecha_entrada": ahora,
@@ -110,9 +165,9 @@ def _construir_tramite_email(
         "asunto_email": email.asunto,
         "documentos": docs,
         "historial": [{
-            "timestamp": ahora,
-            "evento": "email_recibido",
-            "detalle": f"Email de {email.remitente} con {len(email.adjuntos)} adjunto(s)",
+            "momento": ahora,
+            "evento": f"Email de {email.remitente} con {len(email.adjuntos)} adjunto(s)",
+            "actor": "tyrion",
         }],
         "avisos_pendientes": avisos,
         "documentos_faltantes": faltantes,
