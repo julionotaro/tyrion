@@ -107,58 +107,85 @@ def ultima_actividad() -> str | None:
     return max(str(t.get("fecha_entrada", "")) for t in _tramites.values())
 
 
-def buscar_tramite_para_respuesta(email) -> dict[str, Any] | None:
-    """Correlaciona un email entrante con un trámite abierto.
+_ESTADOS_ABIERTOS: frozenset[str] = frozenset({"pendiente_gestoria", "en_revision"})
 
-    Capa 1 (primaria): In-Reply-To / References apuntando al Message-ID de un aviso
-    enviado por Tyrion (campo message_ids_avisos del trámite).
 
-    Capa 2 (secundaria): matrícula o bastidor extraído del asunto del email,
-    cruzado con trámites en estado pendiente_gestoria.
+def buscar_tramite_existente(
+    matricula: str | None = None,
+    bastidor: str | None = None,
+    in_reply_to: str | None = None,
+    references: str | None = None,
+    asunto: str | None = None,
+) -> dict[str, Any] | None:
+    """Busca trámite abierto por headers email (capa 1) o matrícula/bastidor (capa 2).
 
-    Retorna el trámite encontrado o None si no hay correlación.
+    Estados considerados abiertos: pendiente_gestoria, en_revision.
     """
-    in_reply_to: str = getattr(email, "in_reply_to", "") or ""
-    references: str = getattr(email, "references", "") or ""
-    asunto: str = getattr(email, "asunto", "") or ""
-
-    # Capa 1: comparar Message-IDs de respuesta con los avisos enviados
+    # Capa 1: headers email → message_ids_avisos
     ref_ids: set[str] = set()
     if in_reply_to:
         ref_ids.add(in_reply_to.strip())
-    for rid in references.split():
-        ref_ids.add(rid.strip())
+    if references:
+        for rid in references.split():
+            ref_ids.add(rid.strip())
     ref_ids.discard("")
-
     if ref_ids:
         for tramite in _tramites.values():
             ids_avisos = set(tramite.get("message_ids_avisos") or [])
             if ids_avisos & ref_ids:
                 return tramite
 
-    # Capa 2: matrícula en el asunto
-    mat_m = _PAT_MATRICULA.search(asunto.upper())
-    if mat_m:
-        matricula_norm = mat_m.group(1) + mat_m.group(2)  # "1234ABC" sin espacio
+    # Capa 2: matrícula directa
+    if matricula:
+        mat_norm = matricula.replace(" ", "").replace("-", "").upper()
         for tramite in _tramites.values():
-            if tramite.get("estado") != "pendiente_gestoria":
+            if tramite.get("estado") not in _ESTADOS_ABIERTOS:
                 continue
             t_mat = (tramite.get("matricula") or "").replace(" ", "").upper()
-            if t_mat and t_mat == matricula_norm:
+            if t_mat and t_mat == mat_norm:
                 return tramite
 
-    # Capa 2: bastidor en el asunto
-    bas_m = _PAT_BASTIDOR.search(asunto.upper())
-    if bas_m:
-        bastidor_norm = bas_m.group(1).upper()
+    # Capa 2: bastidor directo
+    if bastidor:
+        bas_norm = bastidor.upper()
         for tramite in _tramites.values():
-            if tramite.get("estado") != "pendiente_gestoria":
+            if tramite.get("estado") not in _ESTADOS_ABIERTOS:
                 continue
             t_bas = (tramite.get("bastidor") or "").upper()
-            if t_bas and t_bas == bastidor_norm:
+            if t_bas and t_bas == bas_norm:
                 return tramite
 
+    # Capa 2 por asunto (solo si no vinieron mat/bas directos)
+    if asunto and not matricula and not bastidor:
+        mat_m = _PAT_MATRICULA.search(asunto.upper())
+        if mat_m:
+            mat_norm = mat_m.group(1) + mat_m.group(2)
+            for tramite in _tramites.values():
+                if tramite.get("estado") not in _ESTADOS_ABIERTOS:
+                    continue
+                t_mat = (tramite.get("matricula") or "").replace(" ", "").upper()
+                if t_mat and t_mat == mat_norm:
+                    return tramite
+        bas_m = _PAT_BASTIDOR.search(asunto.upper())
+        if bas_m:
+            bas_norm = bas_m.group(1).upper()
+            for tramite in _tramites.values():
+                if tramite.get("estado") not in _ESTADOS_ABIERTOS:
+                    continue
+                t_bas = (tramite.get("bastidor") or "").upper()
+                if t_bas and t_bas == bas_norm:
+                    return tramite
+
     return None
+
+
+def buscar_tramite_para_respuesta(email) -> dict[str, Any] | None:
+    """Correlaciona email entrante con trámite abierto. Delega a buscar_tramite_existente."""
+    return buscar_tramite_existente(
+        in_reply_to=getattr(email, "in_reply_to", "") or None,
+        references=getattr(email, "references", "") or None,
+        asunto=getattr(email, "asunto", "") or None,
+    )
 
 
 def reset() -> None:

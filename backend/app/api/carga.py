@@ -47,6 +47,7 @@ from app.services.motor_cotejo import (
 from app.services import registro_tramites
 from app.services.storage import guardar_archivo
 from app.api.store import DOCUMENTOS_CARGA
+from app.services.correlacion import extraer_identificador, adjuntar_documentos
 
 logger = logging.getLogger(__name__)
 
@@ -223,11 +224,68 @@ def procesar_sesion(payload: ProcesarRequest) -> ProcesarResponse:
         for d in docs_sesion
     ]
 
+    # Extraer identificador de los documentos (tiene prioridad sobre formulario vacío)
+    _clfs_sesion = {d["archivo"]: d["_clasificacion"] for d in docs_sesion if "_clasificacion" in d}
+    mat_doc, bas_doc = extraer_identificador(
+        deduccion.tipo.value if deduccion.tipo else "",
+        _clfs_sesion,
+    )
+    matricula_efectiva = payload.matricula or mat_doc
+    bastidor_efectivo = payload.bastidor or bas_doc
+
+    # Correlacionar con trámite existente antes de crear uno nuevo
+    tramite_existente = registro_tramites.buscar_tramite_existente(
+        matricula=matricula_efectiva,
+        bastidor=bastidor_efectivo,
+    )
+    if tramite_existente is not None:
+        doc_ids_map = {d["archivo"]: d["doc_id"] for d in docs_sesion}
+        adjuntar_documentos(
+            tramite_existente,
+            _clfs_sesion,
+            payload.gestoria_email or payload.gestoria or "carga_manual",
+            doc_ids=doc_ids_map,
+        )
+        _registrar_documentos_en_store(
+            tramite_existente["id"], docs_sesion,
+            validez_por_tipo={d["tipo_detectado"]: "VALIDO" for d in docs_sesion},
+        )
+        registro_tramites.marcar_sesion_procesada(payload.sesion_id, tramite_existente["id"])
+        estado_str = tramite_existente["estado"]
+        tipo_t = tramite_existente.get("tipo", "")
+        subtipo_t = tramite_existente.get("subtipo", "ninguno")
+        return ProcesarResponse(
+            tramite_id=tramite_existente["id"],
+            tipo_tramite=tipo_t or None,
+            tipo_label=_ETIQUETA_TIPO.get((tipo_t, subtipo_t), tipo_t.title() if tipo_t else "Sin determinar"),
+            subtipo=subtipo_t,
+            deduccion_motivo="Documentos adjuntados a trámite existente",
+            estado=estado_str,
+            estado_label=_ESTADO_LABEL.get(estado_str, estado_str),
+            listo_dgt=(estado_str == "listo_dgt"),
+            requisitos_validos=[],
+            requisitos_faltantes=tramite_existente.get("documentos_faltantes") or [],
+            requisitos_evidencia=tramite_existente.get("documentos_evidencia") or [],
+            requisitos_rechazados=[],
+            debe_pedir_gestoria=(estado_str == "pendiente_gestoria"),
+            aviso_preparado=False,
+            documentos=docs_resumen,
+        )
+
+    # Usar payload enriquecido con datos extraídos de documentos
+    payload_efectivo = ProcesarRequest(
+        sesion_id=payload.sesion_id,
+        gestoria=payload.gestoria,
+        gestoria_email=payload.gestoria_email,
+        matricula=matricula_efectiva,
+        bastidor=bastidor_efectivo,
+    )
+
     # Caso: no se pudo deducir el tipo → trámite en revisión manual
     if not deduccion.deducido:
         estado_str = "en_revision"
         tramite = _construir_tramite(
-            tramite_id, None, payload, docs_sesion, estado_str, ahora,
+            tramite_id, None, payload_efectivo, docs_sesion, estado_str, ahora,
             alerta=True, motivo=deduccion.motivo,
         )
         registro_tramites.agregar_tramite(tramite)
@@ -263,7 +321,7 @@ def procesar_sesion(payload: ProcesarRequest) -> ProcesarResponse:
         estado_str = "listo_dgt"
     elif estado.debe_pedir_gestoria:
         estado_str = "pendiente_gestoria"
-        cuerpo = _motor.preparar_mensaje_gestoria(estado, matricula=payload.matricula)
+        cuerpo = _motor.preparar_mensaje_gestoria(estado, matricula=matricula_efectiva)
         aviso_preparado = bool(cuerpo)
     else:
         estado_str = "en_revision"
@@ -271,7 +329,7 @@ def procesar_sesion(payload: ProcesarRequest) -> ProcesarResponse:
     listo_dgt = estado.completo
 
     tramite = _construir_tramite(
-        tramite_id, tipo, payload, docs_sesion, estado_str, ahora,
+        tramite_id, tipo, payload_efectivo, docs_sesion, estado_str, ahora,
         alerta=(estado_str == "pendiente_gestoria"),
         motivo=deduccion.motivo, subtipo=subtipo.value,
         aviso_preparado=aviso_preparado,

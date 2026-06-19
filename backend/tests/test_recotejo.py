@@ -99,8 +99,8 @@ async def test_adjuntar_completa_tramite():
 
     checklist_ok = _resultado_checklist_completo()
 
-    with patch("app.services.worker_email._recotejar_tramite") as mock_recotejar, \
-         patch("app.services.worker_email.guardar_archivo"):
+    with patch("app.services.correlacion.recotejar_tramite") as mock_recotejar, \
+         patch("app.services.correlacion.guardar_archivo"):
         def side_recotejar(t):
             t["estado"] = "listo_dgt"
             t["alerta"] = False
@@ -135,8 +135,8 @@ async def test_adjuntar_incompleto_permanece_pendiente():
     email = _Email(adjuntos=[_Adjunto("cti.pdf", "application/pdf", b"PDF")])
     clasificaciones = {"cti.pdf": clf}
 
-    with patch("app.services.worker_email._recotejar_tramite") as mock_recotejar, \
-         patch("app.services.worker_email.guardar_archivo"):
+    with patch("app.services.correlacion.recotejar_tramite") as mock_recotejar, \
+         patch("app.services.correlacion.guardar_archivo"):
         def side_recotejar(t):
             t["estado"] = "pendiente_gestoria"
             t["alerta"] = True
@@ -169,8 +169,8 @@ async def test_historial_incluye_nombre_documento():
     email = _Email(remitente="mis@gestoria.com", adjuntos=[_Adjunto("permiso.pdf", "application/pdf", b"")])
     clasificaciones = {"permiso.pdf": clf}
 
-    with patch("app.services.worker_email._recotejar_tramite") as mock_recotejar, \
-         patch("app.services.worker_email.guardar_archivo"):
+    with patch("app.services.correlacion.recotejar_tramite") as mock_recotejar, \
+         patch("app.services.correlacion.guardar_archivo"):
         mock_recotejar.side_effect = lambda t: t.update({"estado": "pendiente_gestoria", "alerta": True, "documentos_faltantes": [], "documentos_evidencia": [], "verificaciones": []})
         await adjuntar_a_tramite(tramite, email, clasificaciones)
 

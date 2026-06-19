@@ -24,9 +24,9 @@ from app.services.catalogo_documental import TipoDocumento
 from app.services.pipeline import Pipeline, RepositorioEnMemoria
 from app.services.worker_email import (
     _construir_tramite_email,
-    _extraer_matricula_bastidor,
     run_email_worker,
 )
+from app.services.correlacion import extraer_identificador as _extraer_matricula_bastidor
 from app.schemas.clasificacion import ResultadoClasificacion
 from app.services.ingesta_email import EmailEntrante, AdjuntoEmail
 
@@ -237,7 +237,7 @@ def test_matricula_none_si_no_hay_campos():
 
 def test_bastidor_alternativo_num_bastidor():
     """bastidor también se extrae del campo 'num_bastidor'."""
-    mat, bas = _extraer_matricula_bastidor({
+    mat, bas = _extraer_matricula_bastidor("TRANSFERENCIA", {
         "doc.pdf": _clf_resultado(datos={"num_bastidor": "XYZ99999"}),
     })
     assert bas == "XYZ99999"

@@ -102,10 +102,20 @@ def test_sin_correlacion_retorna_none():
 
 
 def test_correlacion_por_matricula_solo_estado_pendiente():
-    """La búsqueda por matrícula solo aplica a trámites en pendiente_gestoria."""
+    """La búsqueda por matrícula no aplica a trámites en listo_dgt."""
     tramite = _tramite_base(matricula="1234TST", estado="listo_dgt")
     registro_tramites.agregar_tramite(tramite)
 
     email = _Email(asunto="Docs matrícula 1234 TST")
     resultado = registro_tramites.buscar_tramite_para_respuesta(email)
     assert resultado is None
+
+
+def test_correlacion_por_matricula_tambien_en_revision():
+    """Capa 2 también encuentra trámites en estado en_revision."""
+    tramite = _tramite_base(matricula="1234TST", estado="en_revision")
+    registro_tramites.agregar_tramite(tramite)
+
+    resultado = registro_tramites.buscar_tramite_existente(matricula="1234TST")
+    assert resultado is not None
+    assert resultado["id"] == "t-001"
