@@ -15,9 +15,14 @@ tocar los endpoints (misma interfaz de lectura).
 """
 from __future__ import annotations
 
+import re
 import threading
 from datetime import date, datetime, timezone
 from typing import Any
+
+# Patrones para correlación por asunto
+_PAT_MATRICULA = re.compile(r'\b(\d{4})\s?([A-Z]{3})\b')
+_PAT_BASTIDOR = re.compile(r'\b([A-HJ-NPR-Z0-9]{17})\b')
 
 # Trámites creados por carga manual (forma idéntica a TRAMITES_PRUEBA)
 _tramites: dict[str, dict[str, Any]] = {}
@@ -100,6 +105,60 @@ def ultima_actividad() -> str | None:
     if not _tramites:
         return None
     return max(str(t.get("fecha_entrada", "")) for t in _tramites.values())
+
+
+def buscar_tramite_para_respuesta(email) -> dict[str, Any] | None:
+    """Correlaciona un email entrante con un trámite abierto.
+
+    Capa 1 (primaria): In-Reply-To / References apuntando al Message-ID de un aviso
+    enviado por Tyrion (campo message_ids_avisos del trámite).
+
+    Capa 2 (secundaria): matrícula o bastidor extraído del asunto del email,
+    cruzado con trámites en estado pendiente_gestoria.
+
+    Retorna el trámite encontrado o None si no hay correlación.
+    """
+    in_reply_to: str = getattr(email, "in_reply_to", "") or ""
+    references: str = getattr(email, "references", "") or ""
+    asunto: str = getattr(email, "asunto", "") or ""
+
+    # Capa 1: comparar Message-IDs de respuesta con los avisos enviados
+    ref_ids: set[str] = set()
+    if in_reply_to:
+        ref_ids.add(in_reply_to.strip())
+    for rid in references.split():
+        ref_ids.add(rid.strip())
+    ref_ids.discard("")
+
+    if ref_ids:
+        for tramite in _tramites.values():
+            ids_avisos = set(tramite.get("message_ids_avisos") or [])
+            if ids_avisos & ref_ids:
+                return tramite
+
+    # Capa 2: matrícula en el asunto
+    mat_m = _PAT_MATRICULA.search(asunto.upper())
+    if mat_m:
+        matricula_norm = mat_m.group(1) + mat_m.group(2)  # "1234ABC" sin espacio
+        for tramite in _tramites.values():
+            if tramite.get("estado") != "pendiente_gestoria":
+                continue
+            t_mat = (tramite.get("matricula") or "").replace(" ", "").upper()
+            if t_mat and t_mat == matricula_norm:
+                return tramite
+
+    # Capa 2: bastidor en el asunto
+    bas_m = _PAT_BASTIDOR.search(asunto.upper())
+    if bas_m:
+        bastidor_norm = bas_m.group(1).upper()
+        for tramite in _tramites.values():
+            if tramite.get("estado") != "pendiente_gestoria":
+                continue
+            t_bas = (tramite.get("bastidor") or "").upper()
+            if t_bas and t_bas == bastidor_norm:
+                return tramite
+
+    return None
 
 
 def reset() -> None:

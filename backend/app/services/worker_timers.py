@@ -22,13 +22,26 @@ def _parse_iso(ts: str | None) -> datetime | None:
     if not ts:
         return None
     try:
-        return datetime.fromisoformat(ts)
+        dt = datetime.fromisoformat(ts)
+        # Normalizar a aware UTC si naive
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except ValueError:
         return None
 
 
 def _minutos_desde(ts: datetime) -> float:
     return (_ahora() - ts).total_seconds() / 60
+
+
+def _registrar_message_id(tramite: dict, message_id: str) -> None:
+    """Guarda el Message-ID de un aviso enviado para correlacionar respuestas futuras."""
+    if not message_id:
+        return
+    ids = tramite.setdefault("message_ids_avisos", [])
+    if message_id not in ids:
+        ids.append(message_id)
 
 
 async def _procesar_tramite(tramite: dict, cfg) -> None:
@@ -43,8 +56,8 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
     gestoria_email = tramite.get("gestoria_email", "")
     tipo = tramite.get("tipo", "TRAMITE")
     faltantes = tramite.get("documentos_faltantes") or []
-    avisos = tramite.get("avisos_pendientes") or []
-    historial = tramite.get("historial") or []
+    avisos = tramite.setdefault("avisos_pendientes", [])
+    historial = tramite.setdefault("historial", [])
 
     # Índice de avisos por tipo
     aviso1 = next((a for a in avisos if a.get("tipo") == "aviso_1"), None)
@@ -64,10 +77,12 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
             requisitos_evidencia=evidencia,
             requisitos_evidencia_detalle=evidencia_detalle,
         )
-        ok = await enviar_aviso(gestoria_email, asunto, html, texto)
-        if ok:
+        mid = await enviar_aviso(gestoria_email, asunto, html, texto)
+        if mid:
             aviso1["enviado_smtp"] = True
             aviso1["enviado_smtp_at"] = ahora_iso
+            aviso1["message_id"] = mid
+            _registrar_message_id(tramite, mid)
             historial.append({
                 "momento": ahora_iso,
                 "evento": f"Aviso 1 enviado a {gestoria_email}",
@@ -76,41 +91,19 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
             logger.info("Trámite %s: aviso_1 enviado a %s", tid, gestoria_email)
         return  # No continuar hasta que aviso_1 esté enviado
 
-    # ── Aviso_2 (T+aviso2_min desde envío de aviso_1) ─────────────────────────
     aviso1_enviado_at = _parse_iso(aviso1.get("enviado_smtp_at") if aviso1 else None)
-    if (
-        aviso1_enviado_at
-        and not aviso2
-        and _minutos_desde(aviso1_enviado_at) >= cfg.escalado_aviso2_min
-    ):
-        asunto, html, texto = aviso_2(
-            matricula=matricula,
-            gestoria=gestoria,
-            requisitos_faltantes=faltantes,
-        )
-        ok = await enviar_aviso(gestoria_email, asunto, html, texto)
-        if ok:
-            entry = {
-                "tipo": "aviso_2",
-                "enviado_at": ahora_iso,
-                "enviado_smtp": True,
-                "enviado_smtp_at": ahora_iso,
-                "requisito": ", ".join(faltantes),
-            }
-            avisos.append(entry)
-            historial.append({
-                "momento": ahora_iso,
-                "evento": f"Aviso 2 (recordatorio) enviado a {gestoria_email}",
-                "actor": "tyrion",
-            })
-            logger.info("Trámite %s: aviso_2 enviado a %s", tid, gestoria_email)
-        return
+    if aviso1_enviado_at is None:
+        return  # aviso_1 no enviado todavía (SMTP fallido), esperar próximo ciclo
 
-    # ── Escalado admin (T+escalado_min desde envío de aviso_1) ───────────────
+    minutos_desde_aviso1 = _minutos_desde(aviso1_enviado_at)
+
+    # ── Escalado admin (T+escalado_min desde envío de aviso_1) — prioridad ───
+    # Se comprueba ANTES de aviso_2 para que si escalado_min < aviso2_min
+    # (configuración no estándar) el escalado tenga prioridad.
+    # Con la config estándar (30/60), aviso_2 se envía antes y escalado un ciclo después.
     if (
-        aviso1_enviado_at
-        and not escalado
-        and _minutos_desde(aviso1_enviado_at) >= cfg.escalado_admin_min
+        not escalado
+        and minutos_desde_aviso1 >= cfg.escalado_admin_min
         and cfg.email_administrativo
     ):
         asunto, html, texto = escalado_admin(
@@ -119,24 +112,33 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
             tramite_id=tid,
             requisitos_faltantes=faltantes,
         )
-        ok = await enviar_aviso(cfg.email_administrativo, asunto, html, texto)
-        if ok:
+        logger.info(
+            "Escalado admin disparado para %s tras %.0f min sin respuesta.",
+            matricula, minutos_desde_aviso1,
+        )
+        mid = await enviar_aviso(cfg.email_administrativo, asunto, html, texto)
+        if mid:
             entry = {
                 "tipo": "escalado",
                 "enviado_at": ahora_iso,
                 "enviado_smtp": True,
                 "enviado_smtp_at": ahora_iso,
+                "message_id": mid,
                 "requisito": ", ".join(faltantes),
             }
             avisos.append(entry)
+            _registrar_message_id(tramite, mid)
             historial.append({
                 "momento": ahora_iso,
-                "evento": f"Escalado enviado al administrativo ({cfg.email_administrativo})",
+                "evento": (
+                    f"Escalado enviado al administrativo ({cfg.email_administrativo}) "
+                    f"tras {minutos_desde_aviso1:.0f} min sin respuesta"
+                ),
                 "actor": "tyrion",
             })
             logger.info("Trámite %s: escalado enviado a admin", tid)
 
-        # Telegram si configurado
+        # Telegram independiente del resultado SMTP
         if cfg.telegram_bot_token and cfg.telegram_chat_id_admin:
             pendientes_str = ", ".join(faltantes) or "sin detalle"
             texto_tg = (
@@ -146,6 +148,36 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
                 f"Sin respuesta tras {cfg.escalado_admin_min} min."
             )
             await enviar_mensaje_telegram(cfg.telegram_chat_id_admin, texto_tg)
+        return
+
+    # ── Aviso_2 (T+aviso2_min desde envío de aviso_1) ─────────────────────────
+    if (
+        not aviso2
+        and minutos_desde_aviso1 >= cfg.escalado_aviso2_min
+    ):
+        asunto, html, texto = aviso_2(
+            matricula=matricula,
+            gestoria=gestoria,
+            requisitos_faltantes=faltantes,
+        )
+        mid = await enviar_aviso(gestoria_email, asunto, html, texto)
+        if mid:
+            entry = {
+                "tipo": "aviso_2",
+                "enviado_at": ahora_iso,
+                "enviado_smtp": True,
+                "enviado_smtp_at": ahora_iso,
+                "message_id": mid,
+                "requisito": ", ".join(faltantes),
+            }
+            avisos.append(entry)
+            _registrar_message_id(tramite, mid)
+            historial.append({
+                "momento": ahora_iso,
+                "evento": f"Aviso 2 (recordatorio) enviado a {gestoria_email}",
+                "actor": "tyrion",
+            })
+            logger.info("Trámite %s: aviso_2 enviado a %s", tid, gestoria_email)
 
 
 async def run_timer_worker(intervalo: int = 60) -> None:

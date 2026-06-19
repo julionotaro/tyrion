@@ -47,6 +47,8 @@ class EmailEntrante:
     asunto: str
     fecha: str
     adjuntos: list[AdjuntoEmail] = field(default_factory=list)
+    in_reply_to: str = ""    # cabecera In-Reply-To (correlación con avisos enviados)
+    references: str = ""     # cabecera References (hilo completo)
 
     @property
     def tiene_adjuntos_utiles(self) -> bool:
@@ -96,12 +98,16 @@ def parsear_email(raw: bytes) -> EmailEntrante:
     remitente = parseaddr(msg.get("From", ""))[1].lower()
     asunto = msg.get("Subject", "") or ""
     fecha = msg.get("Date", "") or ""
+    in_reply_to = (msg.get("In-Reply-To") or "").strip()
+    references = (msg.get("References") or "").strip()
     return EmailEntrante(
         message_id=message_id,
         remitente=remitente,
         asunto=asunto,
         fecha=fecha,
         adjuntos=_extraer_adjuntos(msg),
+        in_reply_to=in_reply_to,
+        references=references,
     )
 
 

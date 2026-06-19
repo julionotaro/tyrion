@@ -40,7 +40,7 @@ def _tramite(tid="t-timer-001", minutos_desde_aviso1=0, aviso1_enviado=False):
 async def test_aviso1_no_enviado_llama_smtp():
     """Trámite con aviso_1 preparado pero no enviado → llama enviar_aviso."""
     tramite = _tramite()
-    mock_enviar = AsyncMock(return_value=True)
+    mock_enviar = AsyncMock(return_value="<test-mid@tyrion.colegio>")
     cfg = _cfg()
 
     with patch("app.services.smtp_sender.enviar_aviso", mock_enviar), \
@@ -58,7 +58,7 @@ async def test_smtp_vacio_no_falla():
     tramite = _tramite()
     cfg = _cfg(email_administrativo="")
 
-    with patch("app.services.smtp_sender.enviar_aviso", AsyncMock(return_value=False)):
+    with patch("app.services.smtp_sender.enviar_aviso", AsyncMock(return_value=None)):
         from app.services.worker_timers import _procesar_tramite
         await _procesar_tramite(tramite, cfg)
     # No debe lanzar excepción
@@ -68,7 +68,7 @@ async def test_smtp_vacio_no_falla():
 async def test_aviso2_se_envia_tras_aviso2_min():
     """Aviso_1 enviado hace >aviso2_min → debe enviar aviso_2."""
     tramite = _tramite(minutos_desde_aviso1=35, aviso1_enviado=True)
-    mock_enviar = AsyncMock(return_value=True)
+    mock_enviar = AsyncMock(return_value="<test-mid@tyrion.colegio>")
     cfg = _cfg()
 
     with patch("app.services.smtp_sender.enviar_aviso", mock_enviar):
@@ -89,7 +89,7 @@ async def test_escalado_se_envia_tras_escalado_min():
     tramite["avisos_pendientes"].append({
         "tipo": "aviso_2", "enviado_smtp": True, "enviado_smtp_at": aviso2_at,
     })
-    mock_enviar = AsyncMock(return_value=True)
+    mock_enviar = AsyncMock(return_value="<test-mid@tyrion.colegio>")
     cfg = _cfg()
 
     with patch("app.services.smtp_sender.enviar_aviso", mock_enviar):

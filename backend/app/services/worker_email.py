@@ -25,7 +25,7 @@ import tempfile
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.services.catalogo_documental import TipoTramite, SubtipoTramite
+from app.services.catalogo_documental import TipoTramite, SubtipoTramite, FamiliaTramite, TipoDocumento
 from app.services.deduccion_tipo import deducir_tipo_tramite
 from app.services.ingesta_email import AdjuntoEmail, EmailEntrante, FuenteCorreo, IngestaEmail
 from app.services.pipeline import Pipeline, RepositorioEnMemoria
@@ -168,6 +168,152 @@ def _serializar_verificaciones(checklist, clasificaciones: dict) -> list[dict]:
         })
 
     return verifs
+
+
+def _reconstruir_clf_desde_doc(doc_entry: dict):
+    """Reconstruye un ResultadoClasificacion mínimo desde un doc guardado en DOCUMENTOS_CARGA."""
+    from app.schemas.clasificacion import ResultadoClasificacion
+    try:
+        tipo = TipoDocumento(doc_entry["tipo_detectado"])
+        datos = {c["campo"]: c["valor"] for c in doc_entry.get("campos_extraidos", [])}
+        return ResultadoClasificacion(
+            tipo_detectado=tipo,
+            confianza_score=doc_entry.get("confianza_score", 0.8),
+            confianza_nivel=doc_entry.get("confianza", "ALTA"),
+            datos_extraidos=datos,
+        )
+    except Exception:
+        return None
+
+
+def _recotejar_tramite(tramite: dict) -> None:
+    """Re-ejecuta el cotejo sobre el conjunto completo de documentos del trámite y actualiza el estado."""
+    from app.services.motor_cotejo import MotorCotejo, RequisitoCotejo, resolver_checklist
+
+    # Reconstruir docs_por_requisito desde todos los documentos acumulados
+    docs_por_requisito: dict = {}
+    for doc_ref in tramite.get("documentos", []):
+        doc_id = doc_ref.get("id")
+        full = DOCUMENTOS_CARGA.get(doc_id) if doc_id else None
+        if full is None:
+            # Construir desde el resumen del doc_ref
+            full = {
+                "tipo_detectado": doc_ref.get("tipo_detectado", "sin_determinar"),
+                "confianza_score": 0.8,
+                "confianza": doc_ref.get("confianza", "ALTA"),
+                "campos_extraidos": [],
+            }
+        clf = _reconstruir_clf_desde_doc(full)
+        if clf is not None:
+            tipo_key = clf.tipo_detectado.value
+            docs_por_requisito[tipo_key] = clf
+
+    # Resolver tipo/subtipo del trámite
+    try:
+        tipo_tramite = TipoTramite(tramite.get("tipo", "TRANSFERENCIA"))
+    except ValueError:
+        tipo_tramite = TipoTramite.TRANSFERENCIA
+
+    subtipo_str = tramite.get("subtipo", "ninguno")
+    try:
+        subtipo_tramite = SubtipoTramite(subtipo_str)
+    except ValueError:
+        subtipo_tramite = SubtipoTramite.NINGUNO
+
+    # Resolver checklist con subtipo si aplica
+    requisitos = None
+    if subtipo_tramite != SubtipoTramite.NINGUNO:
+        _familia_map = {
+            TipoTramite.TRANSFERENCIA: FamiliaTramite.TRANSFERENCIA,
+            TipoTramite.MATRICULACION: FamiliaTramite.MATRICULACION,
+            TipoTramite.BAJA: FamiliaTramite.BAJA,
+        }
+        familia = _familia_map.get(tipo_tramite)
+        if familia is not None:
+            cr = resolver_checklist(familia, subtipo=subtipo_tramite)
+            requisitos = [RequisitoCotejo(r) for r in cr.requisitos]
+
+    motor = MotorCotejo()
+    checklist = motor.evaluar_checklist(tipo_tramite, docs_por_requisito, requisitos=requisitos)
+
+    # Actualizar campos del trámite
+    tramite["verificaciones"] = _serializar_verificaciones(checklist, docs_por_requisito)
+    tramite["documentos_faltantes"] = checklist.requisitos_faltantes
+    tramite["documentos_evidencia"] = checklist.requisitos_evidencia
+
+    if checklist.completo:
+        tramite["estado"] = "listo_dgt"
+        tramite["alerta"] = False
+        # Limpiar avisos pendientes no enviados
+        tramite["avisos_pendientes"] = [
+            a for a in tramite.get("avisos_pendientes", [])
+            if a.get("enviado_smtp")
+        ]
+    elif checklist.debe_escalar_admin or not checklist.completo:
+        tramite["estado"] = "pendiente_gestoria"
+        tramite["alerta"] = True
+
+
+async def adjuntar_a_tramite(
+    tramite: dict,
+    email: EmailEntrante,
+    clasificaciones: dict,
+) -> None:
+    """Adjunta documentos de una respuesta de email a un trámite existente y re-coteja."""
+    ahora = datetime.now(timezone.utc).isoformat()
+    tramite_id = tramite["id"]
+    adjunto_por_nombre = {a.nombre: a for a in email.adjuntos}
+    existing_count = len(tramite.get("documentos", []))
+
+    nuevos_nombres = []
+    for i, (nombre, clf) in enumerate(clasificaciones.items()):
+        doc_id = f"{tramite_id}-doc-{existing_count + i}"
+        tipo_doc = clf.tipo_detectado.value
+        campos = [
+            {"campo": k, "valor": str(v), "estado": "valido"}
+            for k, v in (clf.datos_extraidos or {}).items()
+        ]
+
+        tiene_archivo = False
+        adjunto = adjunto_por_nombre.get(nombre)
+        if adjunto and adjunto.contenido:
+            try:
+                guardar_archivo(doc_id, adjunto.contenido, nombre, adjunto.content_type)
+                tiene_archivo = True
+            except Exception as exc:
+                logger.warning("No se pudo guardar adjunto '%s': %s", nombre, exc)
+
+        doc_entry = {
+            "id": doc_id, "tramite_id": tramite_id, "nombre": nombre,
+            "tipo_detectado": tipo_doc, "validez": "VALIDO",
+            "confianza": clf.confianza_nivel, "confianza_score": clf.confianza_score,
+            "tiene_archivo": tiene_archivo, "campos_extraidos": campos,
+            "justificacion": clf.justificacion or "",
+        }
+        DOCUMENTOS_CARGA[doc_id] = doc_entry
+        tramite.setdefault("documentos", []).append({
+            "id": doc_id, "nombre": nombre, "tipo_detectado": tipo_doc,
+            "validez": "VALIDO", "confianza": clf.confianza_nivel,
+        })
+        nuevos_nombres.append(nombre)
+
+    # Re-cotejar con todos los documentos acumulados
+    _recotejar_tramite(tramite)
+
+    estado_nuevo = tramite["estado"]
+    tramite.setdefault("historial", []).append({
+        "momento": ahora,
+        "evento": (
+            f"Respuesta recibida de {email.remitente} — "
+            f"{len(nuevos_nombres)} documento(s) nuevo(s): {', '.join(nuevos_nombres)}. "
+            f"Cotejo actualizado → {estado_nuevo}."
+        ),
+        "actor": "tyrion",
+    })
+    logger.info(
+        "Trámite %s: %d doc(s) adjuntados desde respuesta email — nuevo estado: %s",
+        tramite_id, len(nuevos_nombres), estado_nuevo,
+    )
 
 
 def _construir_tramite_email(
@@ -343,6 +489,16 @@ async def run_email_worker(
 
                 # PASO 1: Clasificar adjuntos sin correr el checklist
                 clasificaciones = await _pipeline.clasificar_adjuntos(email)
+
+                # Correlacionar con trámite existente antes de crear uno nuevo
+                tramite_existente = registro_tramites.buscar_tramite_para_respuesta(email)
+                if tramite_existente is not None:
+                    await adjuntar_a_tramite(tramite_existente, email, clasificaciones)
+                    logger.info(
+                        "Email %s correlacionado con trámite %s — documentos adjuntados, cotejo actualizado.",
+                        email.message_id, tramite_existente["id"],
+                    )
+                    continue
 
                 # PASO 2: Deducir tipo y subtipo reales a partir de las clasificaciones
                 tipos_clasificados = [clf.tipo_detectado for clf in clasificaciones.values()]
