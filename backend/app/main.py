@@ -22,9 +22,8 @@ async def lifespan(app: FastAPI):
     # Importación diferida para no ejecutar nada al importar main en tests
     from app.services.worker_email import run_email_worker
     from app.services.worker_timers import run_timer_worker
-    from app.api.telegram_webhook import registrar_webhook
+    from app.services.telegram_agent import run_telegram_polling
     tasks = []
-    await registrar_webhook()
     try:
         tasks.append(asyncio.create_task(run_email_worker()))
     except Exception:
@@ -37,6 +36,10 @@ async def lifespan(app: FastAPI):
         tasks.append(asyncio.create_task(run_timer_worker()))
     except Exception:
         logger.warning("Worker timers no pudo arrancarse.", exc_info=True)
+    try:
+        tasks.append(asyncio.create_task(run_telegram_polling()))
+    except Exception:
+        logger.warning("Telegram polling no pudo arrancarse.", exc_info=True)
     yield
     for task in tasks:
         task.cancel()

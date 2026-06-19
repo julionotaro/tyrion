@@ -38,29 +38,4 @@ async def telegram_webhook(update: dict):
     return {"ok": True}
 
 
-async def registrar_webhook() -> None:
-    """Registra el webhook de Telegram al arrancar la app."""
-    from app.core.config import get_settings
-    import httpx
-
-    cfg = get_settings()
-    if not cfg.telegram_bot_token or not cfg.tyrion_base_url:
-        logger.info(
-            "Webhook Telegram no registrado (telegram_bot_token o tyrion_base_url vacíos)."
-        )
-        return
-
-    webhook_url = f"{cfg.tyrion_base_url.rstrip('/')}/telegram/webhook"
-    api_url = f"https://api.telegram.org/bot{cfg.telegram_bot_token}/setWebhook"
-
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(api_url, json={"url": webhook_url})
-            if resp.status_code == 200 and resp.json().get("ok"):
-                logger.info("Webhook Telegram registrado: %s", webhook_url)
-            else:
-                logger.warning(
-                    "No se pudo registrar el webhook Telegram: %s", resp.text[:200]
-                )
-    except Exception as exc:
-        logger.warning("Error registrando webhook Telegram: %s", exc)
+# registrar_webhook() eliminado — se usa polling en vez de webhook (VPS sin HTTPS).

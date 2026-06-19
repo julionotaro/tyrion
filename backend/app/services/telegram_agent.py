@@ -1,7 +1,10 @@
 """Agente conversacional de Tyrion para Telegram — motor GPT-4o-mini."""
 from __future__ import annotations
 
+import asyncio
 import logging
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -131,3 +134,55 @@ async def procesar_mensaje(
     except Exception as exc:
         logger.error("Error en agente Telegram: %s", exc)
         return "Lo siento, no puedo responder en este momento. Intenta más tarde."
+
+
+async def run_telegram_polling(intervalo: int = 3) -> None:
+    """Loop de polling Telegram. Alternativa al webhook para servidores HTTP."""
+    from app.core.config import get_settings
+    from app.services.telegram_auth import identificar_usuario
+    from app.services.telegram_sender import enviar_mensaje_telegram
+
+    s = get_settings()
+    if not s.telegram_bot_token:
+        logger.info("Telegram polling desactivado (sin token).")
+        return
+
+    base_url = f"https://api.telegram.org/bot{s.telegram_bot_token}"
+    offset = 0
+    logger.info("Telegram polling arrancado (intervalo=%ds).", intervalo)
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        while True:
+            try:
+                resp = await client.get(
+                    f"{base_url}/getUpdates",
+                    params={"offset": offset, "timeout": 20, "limit": 10},
+                )
+                data = resp.json()
+                if data.get("ok"):
+                    for update in data.get("result", []):
+                        offset = update["update_id"] + 1
+                        chat_id = str(
+                            update.get("message", {}).get("chat", {}).get("id", "")
+                        )
+                        texto = update.get("message", {}).get("text", "")
+                        if chat_id and texto:
+                            usuario = identificar_usuario(chat_id)
+                            if usuario is None:
+                                respuesta = (
+                                    "Hola 👋 No tengo tu cuenta registrada en el sistema "
+                                    "del Colegio de Gestores. Contactá con la administración "
+                                    "para que te den acceso."
+                                )
+                            else:
+                                respuesta = await procesar_mensaje(chat_id, texto, usuario)
+                            await enviar_mensaje_telegram(chat_id, respuesta)
+            except asyncio.CancelledError:
+                logger.info("Telegram polling detenido.")
+                break
+            except Exception:
+                logger.exception("Error en polling Telegram — reintentando.")
+                await asyncio.sleep(intervalo)
+                continue
+
+            await asyncio.sleep(intervalo)
