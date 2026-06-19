@@ -12,6 +12,7 @@ from app.api.control import router as control_router
 from app.api.documentos import router as documentos_router
 from app.api.carga import router as carga_router
 from app.api.gestorias_api import router as gestorias_router
+from app.api.telegram_webhook import router as telegram_router
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,9 @@ async def lifespan(app: FastAPI):
     # Importación diferida para no ejecutar nada al importar main en tests
     from app.services.worker_email import run_email_worker
     from app.services.worker_timers import run_timer_worker
+    from app.api.telegram_webhook import registrar_webhook
     tasks = []
+    await registrar_webhook()
     try:
         tasks.append(asyncio.create_task(run_email_worker()))
     except Exception:
@@ -53,6 +56,7 @@ app.include_router(control_router)
 app.include_router(documentos_router)
 app.include_router(carga_router)
 app.include_router(gestorias_router)
+app.include_router(telegram_router)
 
 # Servir la Pantalla Control como frontend estático
 _static_dir = os.path.join(os.path.dirname(__file__), "..", "static")

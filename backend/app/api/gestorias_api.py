@@ -20,12 +20,14 @@ class GestoriaIn(BaseModel):
     nombre: str
     contacto: str = ""
     telefono: str = ""
+    telegram_chat_id: str = ""
 
 
 class GestoriaUpdate(BaseModel):
     nombre: str | None = None
     contacto: str | None = None
     telefono: str | None = None
+    telegram_chat_id: str | None = None
 
 
 @router.get("")
@@ -41,6 +43,7 @@ def crear_gestoria(payload: GestoriaIn):
             nombre=payload.nombre,
             contacto=payload.contacto,
             telefono=payload.telefono,
+            telegram_chat_id=payload.telegram_chat_id,
         )
     except ValueError as exc:
         raise HTTPException(409, str(exc))
@@ -54,6 +57,7 @@ def actualizar_gestoria(email: str, payload: GestoriaUpdate):
             nombre=payload.nombre,
             contacto=payload.contacto,
             telefono=payload.telefono,
+            telegram_chat_id=payload.telegram_chat_id,
         )
     except KeyError as exc:
         raise HTTPException(404, str(exc))

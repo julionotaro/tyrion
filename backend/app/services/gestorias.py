@@ -18,6 +18,7 @@ class Gestoria:
     nombre: str
     contacto: str = ""
     telefono: str = ""
+    telegram_chat_id: str = ""
 
 
 # Store mutable en memoria
@@ -53,11 +54,21 @@ def obtener(email: str) -> dict[str, Any] | None:
     return asdict(g) if g else None
 
 
-def crear(email: str, nombre: str, contacto: str = "", telefono: str = "") -> dict[str, Any]:
+def crear(
+    email: str,
+    nombre: str,
+    contacto: str = "",
+    telefono: str = "",
+    telegram_chat_id: str = "",
+) -> dict[str, Any]:
     key = email.strip().lower()
     if key in _STORE:
         raise ValueError(f"Gestoría con email '{key}' ya existe.")
-    g = Gestoria(email=key, nombre=nombre.strip(), contacto=contacto, telefono=telefono)
+    g = Gestoria(
+        email=key, nombre=nombre.strip(),
+        contacto=contacto, telefono=telefono,
+        telegram_chat_id=telegram_chat_id,
+    )
     _STORE[key] = g
     return asdict(g)
 
@@ -67,6 +78,7 @@ def actualizar(
     nombre: str | None = None,
     contacto: str | None = None,
     telefono: str | None = None,
+    telegram_chat_id: str | None = None,
 ) -> dict[str, Any]:
     key = email.strip().lower()
     g = _STORE.get(key)
@@ -78,7 +90,17 @@ def actualizar(
         g.contacto = contacto
     if telefono is not None:
         g.telefono = telefono
+    if telegram_chat_id is not None:
+        g.telegram_chat_id = telegram_chat_id
     return asdict(g)
+
+
+def obtener_por_telegram_chat_id(chat_id: str) -> dict[str, Any] | None:
+    """Devuelve la gestoría registrada con ese chat_id de Telegram, o None."""
+    for g in _STORE.values():
+        if g.telegram_chat_id and g.telegram_chat_id == chat_id:
+            return asdict(g)
+    return None
 
 
 def eliminar(email: str) -> bool:

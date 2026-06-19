@@ -313,6 +313,7 @@ tbody tr.sel td{background:#d8eee5}
     <div class="form-row"><label>Email *</label><input id="g-e" placeholder="garcia@gestorias.es"></div>
     <div class="form-row"><label>Persona de contacto</label><input id="g-c" placeholder="Ana García"></div>
     <div class="form-row"><label>Teléfono</label><input id="g-t" placeholder="986 000 000"></div>
+    <div class="form-row"><label>Chat ID Telegram</label><input id="g-tg" placeholder="123456789 (opcional)"></div>
     <div class="modal-btns">
       <button class="btn-sm" onclick="cerrarModal()">Cancelar</button>
       <button class="btn-primary" onclick="guardarGestoria()">Guardar</button>
@@ -857,6 +858,7 @@ function editG(email) {
   emailInput.value = g.email; emailInput.disabled = true;
   document.getElementById('g-c').value = g.contacto || '';
   document.getElementById('g-t').value = g.telefono || '';
+  document.getElementById('g-tg').value = g.telegram_chat_id || '';
   document.getElementById('modal').style.display = 'flex';
   document.getElementById('g-n').focus();
 }
@@ -868,19 +870,20 @@ async function guardarGestoria() {
   const e = document.getElementById('g-e').value.trim();
   const c = document.getElementById('g-c').value.trim();
   const t = document.getElementById('g-t').value.trim();
+  const tg = document.getElementById('g-tg').value.trim();
   if (!n) { showToast('El nombre es obligatorio.', 'err'); return; }
   if (!editEmail && !e) { showToast('El email es obligatorio.', 'err'); return; }
   try {
     if (editEmail) {
       await apiFetch(`/api/gestorias/${editEmail}`, {
         method: 'PUT', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({nombre:n, contacto:c, telefono:t}),
+        body: JSON.stringify({nombre:n, contacto:c, telefono:t, telegram_chat_id:tg}),
       });
       showToast('Gestoría actualizada.', 'ok');
     } else {
       await apiFetch('/api/gestorias', {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({email:e, nombre:n, contacto:c, telefono:t}),
+        body: JSON.stringify({email:e, nombre:n, contacto:c, telefono:t, telegram_chat_id:tg}),
       });
       showToast('Gestoría creada.', 'ok');
     }

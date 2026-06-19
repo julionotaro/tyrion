@@ -55,11 +55,14 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
 
     # ── Enviar aviso_1 si está preparado y no enviado vía SMTP ────────────────
     if aviso1 and not aviso1.get("enviado_smtp"):
+        evidencia = tramite.get("documentos_evidencia") or []
+        evidencia_detalle = tramite.get("documentos_evidencia_detalle") or {}
         asunto, html, texto = aviso_1(
             matricula=matricula,
             gestoria=gestoria,
             requisitos_faltantes=faltantes,
-            requisitos_evidencia=[],
+            requisitos_evidencia=evidencia,
+            requisitos_evidencia_detalle=evidencia_detalle,
         )
         ok = await enviar_aviso(gestoria_email, asunto, html, texto)
         if ok:

@@ -190,6 +190,20 @@ def _construir_tramite_email(
 
     checklist = resultado_pipeline.estado_checklist
     faltantes = checklist.requisitos_faltantes if checklist else []
+    evidencia = checklist.requisitos_evidencia if checklist else []
+
+    # Construir detalle de campos faltantes por documento de evidencia
+    # (qué campos concretos faltan en cada clasificación con baja confianza)
+    evidencia_detalle: dict[str, list[str]] = {}
+    for nombre_doc, clf in resultado_pipeline.clasificaciones.items():
+        tipo_doc = clf.tipo_detectado.value if clf.tipo_detectado else ""
+        if tipo_doc in evidencia:
+            from app.services.catalogo_documental import CAMPOS_REQUERIDOS
+            requeridos = CAMPOS_REQUERIDOS.get(clf.tipo_detectado, [])
+            extraidos = set(clf.datos_extraidos or {})
+            campos_faltantes = [c for c in requeridos if c not in extraidos]
+            if campos_faltantes:
+                evidencia_detalle[tipo_doc] = campos_faltantes
 
     # Construir la validez por tipo desde el checklist
     validez_por_tipo: dict[str, str] = {}
@@ -279,6 +293,8 @@ def _construir_tramite_email(
         }],
         "avisos_pendientes": avisos,
         "documentos_faltantes": faltantes,
+        "documentos_evidencia": evidencia,
+        "documentos_evidencia_detalle": evidencia_detalle,
         "motivo_deduccion": deduccion.motivo,
         "verificaciones": verificaciones,
     }

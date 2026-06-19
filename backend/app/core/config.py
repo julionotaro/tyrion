@@ -53,9 +53,10 @@ class Settings(BaseSettings):
     escalado_admin_min: int = 60
     email_administrativo: str = ""    # destinatario del escalado (último recurso)
 
-    # Telegram Bot para notificaciones de escalado al administrativo
+    # Telegram Bot para notificaciones de escalado al administrativo y agente conversacional
     telegram_bot_token: str = ""
     telegram_chat_id_admin: str = ""
+    tyrion_base_url: str = ""  # ej: http://187.127.233.43:8000 — para registrar el webhook
 
 
 @lru_cache

@@ -50,32 +50,80 @@ def aviso_1(
     gestoria: str,
     requisitos_faltantes: list[str],
     requisitos_evidencia: list[str],
+    requisitos_evidencia_detalle: dict[str, list[str]] | None = None,
 ) -> tuple[str, str, str]:
     """T+0: primer aviso de documentación pendiente."""
     asunto = f"[Tyrion] Documentación pendiente — {matricula}"
+    detalle = requisitos_evidencia_detalle or {}
 
-    pendientes = requisitos_faltantes + requisitos_evidencia
-    lista_html = _lista_requisitos(pendientes)
-    lista_texto = "\n".join(f"  • {r.replace('_', ' ')}" for r in pendientes)
+    lista_faltantes_html = _lista_requisitos(requisitos_faltantes)
+    lista_faltantes_texto = "\n".join(f"  • {r.replace('_', ' ')}" for r in requisitos_faltantes)
 
-    cuerpo_html = f"""
-<p style="color:#1A2E2A;">Estimada gestoría <strong>{gestoria}</strong>,</p>
+    # Sección de evidencia (llegaron pero con info incompleta)
+    evidencia_html = ""
+    evidencia_texto = ""
+    if requisitos_evidencia:
+        items_ev = []
+        items_ev_texto = []
+        for r in requisitos_evidencia:
+            campos = detalle.get(r, [])
+            nombre = r.replace("_", " ").capitalize()
+            if campos:
+                campos_str = ", ".join(campos)
+                items_ev.append(
+                    f'<li style="margin:4px 0;color:#1A2E2A;">'
+                    f'{nombre} — faltan: <em>{campos_str}</em></li>'
+                )
+                items_ev_texto.append(f"  • {nombre} — faltan: {campos_str}")
+            else:
+                items_ev.append(f'<li style="margin:4px 0;color:#1A2E2A;">{nombre}</li>')
+                items_ev_texto.append(f"  • {nombre}")
+        lista_ev = f'<ul style="padding-left:20px;margin:8px 0;">{"".join(items_ev)}</ul>'
+        evidencia_html = f"""
+<p style="color:#4A5E5A;margin-top:16px;">
+  Documentos recibidos pero con información incompleta (requieren reenvío en mejor calidad):
+</p>
+{lista_ev}"""
+        evidencia_texto = (
+            "\nDocumentos recibidos pero con información incompleta "
+            "(requieren reenvío en mejor calidad):\n"
+            + "\n".join(items_ev_texto)
+        )
+
+    cuerpo_faltantes_html = ""
+    if requisitos_faltantes:
+        cuerpo_faltantes_html = f"""
 <p style="color:#4A5E5A;">
   Hemos revisado la documentación recibida para el vehículo <strong>{matricula}</strong>
   y necesitamos que completen el expediente con los siguientes documentos:
 </p>
-{lista_html}
+{lista_faltantes_html}"""
+    elif not requisitos_evidencia:
+        pass
+    else:
+        cuerpo_faltantes_html = f"""
 <p style="color:#4A5E5A;">
+  Hemos revisado la documentación recibida para el vehículo <strong>{matricula}</strong>.
+</p>"""
+
+    cuerpo_html = f"""
+<p style="color:#1A2E2A;">Estimada gestoría <strong>{gestoria}</strong>,</p>
+{cuerpo_faltantes_html}{evidencia_html}
+<p style="color:#4A5E5A;margin-top:16px;">
   Rogamos que envíen la documentación a la mayor brevedad para poder completar el trámite
   dentro del plazo del día.
 </p>
 """
+    faltantes_texto_bloque = ""
+    if requisitos_faltantes:
+        faltantes_texto_bloque = (
+            "\ny necesitamos que completen el expediente con los siguientes documentos:\n"
+            + lista_faltantes_texto
+        )
+
     cuerpo_texto = f"""Estimada gestoría {gestoria},
 
-Hemos revisado la documentación recibida para el vehículo {matricula}
-y necesitamos que completen el expediente con los siguientes documentos:
-
-{lista_texto}
+Hemos revisado la documentación recibida para el vehículo {matricula}{faltantes_texto_bloque}{evidencia_texto}
 
 Rogamos que envíen la documentación a la mayor brevedad.
 
