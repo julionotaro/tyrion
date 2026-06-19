@@ -119,3 +119,24 @@ def test_correlacion_por_matricula_tambien_en_revision():
     resultado = registro_tramites.buscar_tramite_existente(matricula="1234TST")
     assert resultado is not None
     assert resultado["id"] == "t-001"
+
+
+def test_matricula_con_espacio_correlaciona_sin_espacio():
+    """Trámite con '5042 HZM' correlaciona con email que trae '5042HZM'."""
+    tramite = _tramite_base(matricula="5042 HZM")
+    registro_tramites.agregar_tramite(tramite)
+
+    resultado = registro_tramites.buscar_tramite_existente(matricula="5042HZM")
+    assert resultado is not None
+    assert resultado["id"] == "t-001"
+
+
+def test_correlacion_cruzada_bastidor_cuando_tramite_tiene_matricula():
+    """Si el trámite tiene matrícula y el nuevo doc trae bastidor del mismo vehículo → correlaciona."""
+    tramite = _tramite_base(matricula="1234TST")
+    tramite["bastidor"] = "WBA3A5C57DF123456"
+    registro_tramites.agregar_tramite(tramite)
+
+    resultado = registro_tramites.buscar_tramite_existente(bastidor="WBA3A5C57DF123456")
+    assert resultado is not None
+    assert resultado["id"] == "t-001"

@@ -43,13 +43,29 @@ def extraer_identificador(
         else:
             datos = {}
 
-        mat = datos.get("matricula") or None
-        bas = datos.get("bastidor") or datos.get("num_bastidor") or None
+        # Matrícula: varios nombres posibles según clasificador
+        mat = (
+            datos.get("matricula")
+            or datos.get("matricula_vehiculo")
+            or datos.get("num_matricula")
+            or datos.get("matricula_actual")
+            or None
+        )
+        # Bastidor/VIN: varios nombres posibles
+        bas = (
+            datos.get("bastidor")
+            or datos.get("num_bastidor")
+            or datos.get("vin")
+            or datos.get("num_vin")
+            or None
+        )
 
         if mat and matricula is None:
-            matricula = mat.replace(" ", "").replace("-", "").upper()
+            from app.services.registro_tramites import normalizar_matricula
+            matricula = normalizar_matricula(mat)
         if bas and bastidor is None:
-            bastidor = bas.upper()
+            from app.services.registro_tramites import normalizar_bastidor
+            bastidor = normalizar_bastidor(bas)
 
     return matricula, bastidor
 

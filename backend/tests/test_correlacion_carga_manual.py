@@ -118,3 +118,25 @@ def test_recotejar_tramite_limpia_cuando_completo():
     assert tramite["estado"] == "pendiente_gestoria"
     assert tramite["alerta"] is True
     assert isinstance(tramite["documentos_faltantes"], list)
+
+
+def test_correlacion_cruzada_matricula_bastidor():
+    """Trámite con matrícula + email con bastidor del mismo vehículo → correlaciona."""
+    tramite = _tramite_abierto(matricula="5042HZM")
+    tramite["bastidor"] = "WBA3A5C57DF123456"
+    registro_tramites.agregar_tramite(tramite)
+
+    # Buscar solo por bastidor (el doc email no tiene matrícula)
+    resultado = registro_tramites.buscar_tramite_existente(bastidor="WBA3A5C57DF123456")
+    assert resultado is not None
+    assert resultado["id"] == "t-cm-001"
+
+
+def test_matricula_5042hzm_variantes():
+    """5042HZM y 5042 HZM correlacionan con el mismo trámite."""
+    tramite = _tramite_abierto(matricula="5042 HZM")
+    registro_tramites.agregar_tramite(tramite)
+
+    assert registro_tramites.buscar_tramite_existente(matricula="5042HZM") is not None
+    assert registro_tramites.buscar_tramite_existente(matricula="5042 HZM") is not None
+    assert registro_tramites.buscar_tramite_existente(matricula="5042-hzm") is not None

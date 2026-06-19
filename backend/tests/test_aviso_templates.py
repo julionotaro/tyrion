@@ -73,3 +73,25 @@ def test_aviso_1_sin_evidencia_no_incluye_seccion_extra():
     )
     assert "incompleta" not in html.lower()
     assert "reenvío" not in html.lower()
+
+
+def test_aviso_asunto_no_contiene_uuid():
+    """El asunto debe mostrar la matrícula, no un UUID de trámite."""
+    import re
+    UUID_PAT = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', re.I)
+    matricula = "5042 HZM"
+    for fn in [
+        lambda: aviso_1(matricula, "G", ["cti"], []),
+        lambda: aviso_2(matricula, "G", ["cti"]),
+        lambda: escalado_admin(matricula, "G", "manual-abc12345", ["cti"]),
+    ]:
+        asunto, _, _ = fn()
+        assert matricula in asunto
+        assert not UUID_PAT.search(asunto), f"UUID found in subject: {asunto!r}"
+
+
+def test_escalado_admin_usa_bastidor_si_no_hay_matricula():
+    """escalado_admin: si se pasa bastidor como identificador, debe mostrarse en asunto."""
+    bastidor = "WBA3A5C57DF123456"
+    asunto, html, texto = escalado_admin(bastidor, "G", "t-001", ["cti"])
+    assert bastidor in asunto

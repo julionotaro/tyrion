@@ -110,6 +110,24 @@ def ultima_actividad() -> str | None:
 _ESTADOS_ABIERTOS: frozenset[str] = frozenset({"pendiente_gestoria", "en_revision"})
 
 
+# ── Normalización de identificadores ─────────────────────────────────────────
+
+def normalizar_matricula(m: str | None) -> str:
+    """Normaliza para comparación: sin espacios, sin guiones, mayúsculas."""
+    if not m:
+        return ""
+    return m.replace(" ", "").replace("-", "").upper()
+
+
+def normalizar_bastidor(b: str | None) -> str:
+    """Normaliza bastidor/VIN para comparación: sin espacios, mayúsculas."""
+    if not b:
+        return ""
+    return b.replace(" ", "").replace("-", "").upper()
+
+
+# ── Búsqueda ──────────────────────────────────────────────────────────────────
+
 def buscar_tramite_existente(
     matricula: str | None = None,
     bastidor: str | None = None,
@@ -119,6 +137,9 @@ def buscar_tramite_existente(
 ) -> dict[str, Any] | None:
     """Busca trámite abierto por headers email (capa 1) o matrícula/bastidor (capa 2).
 
+    Capa 2 cruza por matrícula O bastidor en un único recorrido: si el trámite
+    existente tiene matrícula y el nuevo documento trae bastidor (o viceversa),
+    también correlaciona.
     Estados considerados abiertos: pendiente_gestoria, en_revision.
     """
     # Capa 1: headers email → message_ids_avisos
@@ -135,45 +156,40 @@ def buscar_tramite_existente(
             if ids_avisos & ref_ids:
                 return tramite
 
-    # Capa 2: matrícula directa
-    if matricula:
-        mat_norm = matricula.replace(" ", "").replace("-", "").upper()
-        for tramite in _tramites.values():
-            if tramite.get("estado") not in _ESTADOS_ABIERTOS:
-                continue
-            t_mat = (tramite.get("matricula") or "").replace(" ", "").upper()
-            if t_mat and t_mat == mat_norm:
-                return tramite
+    # Capa 2: matrícula y/o bastidor en un único recorrido
+    mat_norm = normalizar_matricula(matricula)
+    bas_norm = normalizar_bastidor(bastidor)
 
-    # Capa 2: bastidor directo
-    if bastidor:
-        bas_norm = bastidor.upper()
+    if mat_norm or bas_norm:
         for tramite in _tramites.values():
             if tramite.get("estado") not in _ESTADOS_ABIERTOS:
                 continue
-            t_bas = (tramite.get("bastidor") or "").upper()
-            if t_bas and t_bas == bas_norm:
-                return tramite
+            if mat_norm:
+                t_mat = normalizar_matricula(tramite.get("matricula"))
+                if t_mat and t_mat == mat_norm:
+                    return tramite
+            if bas_norm:
+                t_bas = normalizar_bastidor(tramite.get("bastidor"))
+                if t_bas and t_bas == bas_norm:
+                    return tramite
 
     # Capa 2 por asunto (solo si no vinieron mat/bas directos)
-    if asunto and not matricula and not bastidor:
+    if asunto and not mat_norm and not bas_norm:
         mat_m = _PAT_MATRICULA.search(asunto.upper())
         if mat_m:
-            mat_norm = mat_m.group(1) + mat_m.group(2)
+            mat_from_asunto = normalizar_matricula(mat_m.group(1) + mat_m.group(2))
             for tramite in _tramites.values():
                 if tramite.get("estado") not in _ESTADOS_ABIERTOS:
                     continue
-                t_mat = (tramite.get("matricula") or "").replace(" ", "").upper()
-                if t_mat and t_mat == mat_norm:
+                if normalizar_matricula(tramite.get("matricula")) == mat_from_asunto:
                     return tramite
         bas_m = _PAT_BASTIDOR.search(asunto.upper())
         if bas_m:
-            bas_norm = bas_m.group(1).upper()
+            bas_from_asunto = normalizar_bastidor(bas_m.group(1))
             for tramite in _tramites.values():
                 if tramite.get("estado") not in _ESTADOS_ABIERTOS:
                     continue
-                t_bas = (tramite.get("bastidor") or "").upper()
-                if t_bas and t_bas == bas_norm:
+                if normalizar_bastidor(tramite.get("bastidor")) == bas_from_asunto:
                     return tramite
 
     return None

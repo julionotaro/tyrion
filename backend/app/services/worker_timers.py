@@ -51,7 +51,7 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
     from app.services.aviso_templates import aviso_1, aviso_2, escalado_admin
 
     tid = tramite.get("id", "?")
-    matricula = tramite.get("matricula") or tid
+    matricula = tramite.get("matricula") or tramite.get("bastidor") or tid
     gestoria = tramite.get("gestoria") or "gestoría"
     gestoria_email = tramite.get("gestoria_email", "")
     tipo = tramite.get("tipo", "TRAMITE")
