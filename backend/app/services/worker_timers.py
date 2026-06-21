@@ -180,6 +180,53 @@ async def _procesar_tramite(tramite: dict, cfg) -> None:
             logger.info("Trámite %s: aviso_2 enviado a %s", tid, gestoria_email)
 
 
+async def _procesar_sin_correlacionar(tramite: dict, cfg) -> None:
+    """Envía aviso a gestoría pidiendo identificador si lleva > escalado_sin_correlacionar_min."""
+    from app.services.smtp_sender import enviar_aviso
+
+    if tramite.get("aviso_sin_correlacionar_enviado"):
+        return
+
+    fecha_entrada = _parse_iso(tramite.get("fecha_entrada"))
+    if fecha_entrada is None:
+        return
+    if _minutos_desde(fecha_entrada) < cfg.escalado_sin_correlacionar_min:
+        return
+
+    tid = tramite.get("id", "?")
+    gestoria_email = tramite.get("gestoria_email", "")
+    gestoria = tramite.get("gestoria") or "gestoría"
+    ahora_iso = _ahora().isoformat()
+
+    asunto = f"[Tyrion] Documentos sin identificar — se necesita matrícula o bastidor"
+    html = (
+        f"<p>Estimada {gestoria},</p>"
+        f"<p>Hemos recibido documentos que no podemos asociar a ningún trámite "
+        f"porque no contienen matrícula ni bastidor legibles.</p>"
+        f"<p>Por favor, indíquenos la matrícula o bastidor del vehículo al que "
+        f"corresponden los documentos (expediente interno: {tid}).</p>"
+        f"<p>Gracias,<br>Tyrion</p>"
+    )
+    texto = (
+        f"Estimada {gestoria},\n\n"
+        f"Hemos recibido documentos que no podemos asociar a ningún trámite "
+        f"porque no contienen matrícula ni bastidor legibles.\n\n"
+        f"Por favor, indíquenos la matrícula o bastidor (expediente: {tid}).\n\nGracias,\nTyrion"
+    )
+
+    mid = await enviar_aviso(gestoria_email, asunto, html, texto)
+    if mid:
+        tramite["aviso_sin_correlacionar_enviado"] = True
+        tramite["aviso_sin_correlacionar_at"] = ahora_iso
+        tramite.setdefault("message_ids_avisos", []).append(mid)
+        tramite.setdefault("historial", []).append({
+            "momento": ahora_iso,
+            "evento": f"Aviso sin_correlacionar enviado a {gestoria_email}",
+            "actor": "tyrion",
+        })
+        logger.info("Trámite %s: aviso sin_correlacionar enviado a %s", tid, gestoria_email)
+
+
 async def run_timer_worker(intervalo: int = 60) -> None:
     """Loop periódico. Revisa avisos pendientes y dispara SMTP + Telegram."""
     from app.core.config import get_settings
@@ -192,6 +239,13 @@ async def run_timer_worker(intervalo: int = 60) -> None:
         try:
             tramites = registro_tramites.listar_tramites()
             pendientes = [t for t in tramites if t.get("estado") == "pendiente_gestoria"]
+            sin_corr = [t for t in tramites if t.get("estado") == "sin_correlacionar"]
+
+            for tramite in sin_corr:
+                try:
+                    await _procesar_sin_correlacionar(tramite, cfg)
+                except Exception:
+                    logger.exception("Error procesando sin_correlacionar para trámite %s", tramite.get("id"))
 
             for tramite in pendientes:
                 try:

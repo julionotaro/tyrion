@@ -49,6 +49,7 @@ class Settings(BaseSettings):
 
     # Escalado automático: gestoría primero, administrativo como último recurso.
     # T+0 aviso_1 (al detectar el faltante) → T+aviso2 aviso_2 → T+escalado admin.
+    escalado_sin_correlacionar_min: int = 15
     escalado_aviso2_min: int = 30
     escalado_admin_min: int = 60
     email_administrativo: str = ""    # destinatario del escalado (último recurso)

@@ -4,9 +4,11 @@ Módulo sin dependencias circulares: importado por worker_email.py y carga.py.
 """
 from __future__ import annotations
 
+import inspect
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
+from uuid import uuid4
 
 from app.services.catalogo_documental import TipoTramite, SubtipoTramite, FamiliaTramite, TipoDocumento
 from app.api.store import DOCUMENTOS_CARGA
@@ -283,6 +285,11 @@ def adjuntar_documentos(
         })
         nuevos_nombres.append(nombre)
 
+    # Acumular identificadores extraídos de los nuevos documentos
+    from app.services.registro_tramites import actualizar_identificadores
+    mat_nueva, bas_nueva = extraer_identificador("", clasificaciones)
+    actualizar_identificadores(tramite, mat_nueva, bas_nueva)
+
     recotejar_tramite(tramite)
 
     estado_nuevo = tramite["estado"]
@@ -299,3 +306,67 @@ def adjuntar_documentos(
         "Trámite %s: %d doc(s) adjuntados desde %s — nuevo estado: %s",
         tramite_id, len(nuevos_nombres), remitente, estado_nuevo,
     )
+
+
+async def ingestar_documentos(
+    clasificaciones: dict,
+    crear_tramite_fn: Callable,
+    in_reply_to: str | None = None,
+    references: str | None = None,
+    asunto: str | None = None,
+    archivos: dict | None = None,
+    doc_ids: dict | None = None,
+    matricula_declarada: str | None = None,
+    bastidor_declarado: str | None = None,
+    remitente: str = "",
+    tramite_id_nuevo: str | None = None,
+) -> tuple[dict, bool]:
+    """Punto único de entrada para ingesta de documentos (email y carga manual).
+
+    1. Extrae mat/bas de clasificaciones (+ declarados desde formulario).
+    2. Busca expediente existente (cualquier estado excepto cerrado).
+    3a. Si existe → adjunta documentos, acumula identificadores, re-coteja.
+    3b. Si no existe → llama a crear_tramite_fn(tramite_id, mat, bas) → registra.
+         Sin identificador → estado sin_correlacionar.
+
+    Retorna (tramite, es_nuevo).
+    `crear_tramite_fn` puede ser async o sync.
+    """
+    from app.services.registro_tramites import (
+        buscar_expediente, actualizar_identificadores, normalizar_matricula,
+        normalizar_bastidor, agregar_tramite,
+    )
+
+    # Extraer identificadores de los documentos
+    mat, bas = extraer_identificador("", clasificaciones)
+    mat = mat or matricula_declarada
+    bas = bas or bastidor_declarado
+
+    # Buscar expediente (sin filtro de estado salvo cerrado)
+    tramite_existente = buscar_expediente(
+        matricula=mat, bastidor=bas,
+        in_reply_to=in_reply_to, references=references, asunto=asunto,
+    )
+
+    if tramite_existente is not None:
+        adjuntar_documentos(
+            tramite_existente, clasificaciones, remitente,
+            archivos=archivos, doc_ids=doc_ids,
+        )
+        return tramite_existente, False
+
+    # Crear nuevo expediente
+    tid = tramite_id_nuevo or str(uuid4())
+    if inspect.iscoroutinefunction(crear_tramite_fn):
+        tramite = await crear_tramite_fn(tid, mat, bas)
+    else:
+        tramite = crear_tramite_fn(tid, mat, bas)
+
+    # Sin identificador extraíble → sin_correlacionar
+    if not normalizar_matricula(mat) and not normalizar_bastidor(bas):
+        tramite["estado"] = "sin_correlacionar"
+        tramite["alerta"] = True
+
+    actualizar_identificadores(tramite, mat, bas)
+    agregar_tramite(tramite)
+    return tramite, True

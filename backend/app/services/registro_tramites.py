@@ -77,8 +77,17 @@ def marcar_sesion_procesada(sesion_id: str, tramite_id: str) -> None:
 # ── Trámites ──────────────────────────────────────────────────────────────────
 
 def agregar_tramite(tramite: dict[str, Any]) -> None:
-    """Registra un trámite creado por carga manual."""
+    """Registra un trámite. Inicializa identificadores{} si no existen."""
     with _lock:
+        if "identificadores" not in tramite:
+            ids: dict[str, str] = {}
+            mat_n = normalizar_matricula(tramite.get("matricula"))
+            bas_n = normalizar_bastidor(tramite.get("bastidor"))
+            if mat_n:
+                ids["matricula"] = mat_n
+            if bas_n:
+                ids["bastidor"] = bas_n
+            tramite["identificadores"] = ids
         _tramites[tramite["id"]] = tramite
 
 
@@ -108,6 +117,7 @@ def ultima_actividad() -> str | None:
 
 
 _ESTADOS_ABIERTOS: frozenset[str] = frozenset({"pendiente_gestoria", "en_revision"})
+_ESTADO_CERRADO = "cerrado"
 
 
 # ── Normalización de identificadores ─────────────────────────────────────────
@@ -126,21 +136,43 @@ def normalizar_bastidor(b: str | None) -> str:
     return b.replace(" ", "").replace("-", "").upper()
 
 
+# ── Acumulación de identificadores ────────────────────────────────────────────
+
+def actualizar_identificadores(tramite: dict[str, Any], matricula: str | None, bastidor: str | None) -> None:
+    """Añade identificadores nuevos al expediente sin borrar los existentes.
+
+    Mantiene `identificadores` (normalizados) para búsquedas rápidas y
+    actualiza `matricula`/`bastidor` de visualización si aún no están.
+    """
+    ids = tramite.setdefault("identificadores", {})
+    mat_n = normalizar_matricula(matricula)
+    bas_n = normalizar_bastidor(bastidor)
+    if mat_n and "matricula" not in ids:
+        ids["matricula"] = mat_n
+        if not tramite.get("matricula"):
+            tramite["matricula"] = matricula
+    if bas_n and "bastidor" not in ids:
+        ids["bastidor"] = bas_n
+        if not tramite.get("bastidor"):
+            tramite["bastidor"] = bastidor
+
+
 # ── Búsqueda ──────────────────────────────────────────────────────────────────
 
-def buscar_tramite_existente(
+def buscar_expediente(
     matricula: str | None = None,
     bastidor: str | None = None,
     in_reply_to: str | None = None,
     references: str | None = None,
     asunto: str | None = None,
 ) -> dict[str, Any] | None:
-    """Busca trámite abierto por headers email (capa 1) o matrícula/bastidor (capa 2).
+    """Busca expediente por identificador, EN CUALQUIER ESTADO excepto 'cerrado'.
 
-    Capa 2 cruza por matrícula O bastidor en un único recorrido: si el trámite
-    existente tiene matrícula y el nuevo documento trae bastidor (o viceversa),
-    también correlaciona.
-    Estados considerados abiertos: pendiente_gestoria, en_revision.
+    Capa 1: headers email (In-Reply-To/References) → message_ids_avisos.
+    Capa 2: matrícula o bastidor normalizado contra identificadores[] del expediente.
+    Capa 3: matrícula/bastidor extraído del asunto (si no vinieron directos).
+
+    Un expediente listo_dgt sigue siendo correlacionable — solo 'cerrado' queda excluido.
     """
     # Capa 1: headers email → message_ids_avisos
     ref_ids: set[str] = set()
@@ -152,52 +184,73 @@ def buscar_tramite_existente(
     ref_ids.discard("")
     if ref_ids:
         for tramite in _tramites.values():
+            if tramite.get("estado") == _ESTADO_CERRADO:
+                continue
             ids_avisos = set(tramite.get("message_ids_avisos") or [])
             if ids_avisos & ref_ids:
                 return tramite
 
-    # Capa 2: matrícula y/o bastidor en un único recorrido
-    mat_norm = normalizar_matricula(matricula)
-    bas_norm = normalizar_bastidor(bastidor)
+    # Normalizar identificadores de entrada
+    mat_n = normalizar_matricula(matricula)
+    bas_n = normalizar_bastidor(bastidor)
 
-    if mat_norm or bas_norm:
+    # Capa 2: matrícula y/o bastidor en un único recorrido (cruce por cualquiera)
+    if mat_n or bas_n:
         for tramite in _tramites.values():
-            if tramite.get("estado") not in _ESTADOS_ABIERTOS:
+            if tramite.get("estado") == _ESTADO_CERRADO:
                 continue
-            if mat_norm:
-                t_mat = normalizar_matricula(tramite.get("matricula"))
-                if t_mat and t_mat == mat_norm:
-                    return tramite
-            if bas_norm:
-                t_bas = normalizar_bastidor(tramite.get("bastidor"))
-                if t_bas and t_bas == bas_norm:
-                    return tramite
+            # Comparar contra identificadores{} acumulados Y contra campos directos
+            ids = tramite.get("identificadores") or {}
+            t_mat = ids.get("matricula") or normalizar_matricula(tramite.get("matricula"))
+            t_bas = ids.get("bastidor") or normalizar_bastidor(tramite.get("bastidor"))
+            if mat_n and t_mat and t_mat == mat_n:
+                return tramite
+            if bas_n and t_bas and t_bas == bas_n:
+                return tramite
 
-    # Capa 2 por asunto (solo si no vinieron mat/bas directos)
-    if asunto and not mat_norm and not bas_norm:
+    # Capa 3: extracción del asunto (si no vinieron mat/bas directos)
+    if asunto and not mat_n and not bas_n:
         mat_m = _PAT_MATRICULA.search(asunto.upper())
         if mat_m:
             mat_from_asunto = normalizar_matricula(mat_m.group(1) + mat_m.group(2))
             for tramite in _tramites.values():
-                if tramite.get("estado") not in _ESTADOS_ABIERTOS:
+                if tramite.get("estado") == _ESTADO_CERRADO:
                     continue
-                if normalizar_matricula(tramite.get("matricula")) == mat_from_asunto:
+                ids = tramite.get("identificadores") or {}
+                t_mat = ids.get("matricula") or normalizar_matricula(tramite.get("matricula"))
+                if t_mat and t_mat == mat_from_asunto:
                     return tramite
         bas_m = _PAT_BASTIDOR.search(asunto.upper())
         if bas_m:
             bas_from_asunto = normalizar_bastidor(bas_m.group(1))
             for tramite in _tramites.values():
-                if tramite.get("estado") not in _ESTADOS_ABIERTOS:
+                if tramite.get("estado") == _ESTADO_CERRADO:
                     continue
-                if normalizar_bastidor(tramite.get("bastidor")) == bas_from_asunto:
+                ids = tramite.get("identificadores") or {}
+                t_bas = ids.get("bastidor") or normalizar_bastidor(tramite.get("bastidor"))
+                if t_bas and t_bas == bas_from_asunto:
                     return tramite
 
     return None
 
 
+def buscar_tramite_existente(
+    matricula: str | None = None,
+    bastidor: str | None = None,
+    in_reply_to: str | None = None,
+    references: str | None = None,
+    asunto: str | None = None,
+) -> dict[str, Any] | None:
+    """Alias de buscar_expediente para compatibilidad."""
+    return buscar_expediente(
+        matricula=matricula, bastidor=bastidor,
+        in_reply_to=in_reply_to, references=references, asunto=asunto,
+    )
+
+
 def buscar_tramite_para_respuesta(email) -> dict[str, Any] | None:
-    """Correlaciona email entrante con trámite abierto. Delega a buscar_tramite_existente."""
-    return buscar_tramite_existente(
+    """Correlaciona email entrante con trámite abierto. Delega a buscar_expediente."""
+    return buscar_expediente(
         in_reply_to=getattr(email, "in_reply_to", "") or None,
         references=getattr(email, "references", "") or None,
         asunto=getattr(email, "asunto", "") or None,

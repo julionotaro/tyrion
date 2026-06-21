@@ -44,8 +44,15 @@ def test_buscar_tramite_existente_en_revision():
     assert resultado["id"] == "t-cm-001"
 
 
-def test_buscar_tramite_no_encuentra_listo_dgt():
+def test_buscar_tramite_encuentra_listo_dgt():
+    """listo_dgt sigue siendo correlacionable — solo 'cerrado' queda excluido."""
     tramite = _tramite_abierto(estado="listo_dgt")
+    registro_tramites.agregar_tramite(tramite)
+    assert registro_tramites.buscar_tramite_existente(matricula="1234TST") is not None
+
+
+def test_buscar_tramite_no_encuentra_cerrado():
+    tramite = _tramite_abierto(estado="cerrado")
     registro_tramites.agregar_tramite(tramite)
     assert registro_tramites.buscar_tramite_existente(matricula="1234TST") is None
 

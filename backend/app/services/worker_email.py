@@ -38,6 +38,7 @@ from app.services.correlacion import (
     serializar_verificaciones as _serializar_verificaciones,
     recotejar_tramite as _recotejar_tramite,
     adjuntar_documentos,
+    ingestar_documentos,
 )
 
 logger = logging.getLogger(__name__)
@@ -255,47 +256,39 @@ async def run_email_worker(
                 # PASO 1: Clasificar adjuntos sin correr el checklist
                 clasificaciones = await _pipeline.clasificar_adjuntos(email)
 
-                # Correlacionar con trámite existente antes de crear uno nuevo
-                mat, bas = extraer_identificador("", clasificaciones)
-                tramite_existente = registro_tramites.buscar_tramite_existente(
-                    matricula=mat,
-                    bastidor=bas,
+                async def _crear_tramite_email(tid: str, mat: str | None, bas: str | None) -> dict:
+                    tipos_clasificados = [clf.tipo_detectado for clf in clasificaciones.values()]
+                    deduccion = deducir_tipo_tramite(tipos_clasificados)
+                    resultado = await _pipeline.procesar_email(
+                        email_entrante=email,
+                        tipo_tramite=deduccion.tipo or TipoTramite.TRANSFERENCIA,
+                        tramite_id=tid,
+                        gestoria_email=email.remitente,
+                        subtipo_tramite=deduccion.subtipo or SubtipoTramite.NINGUNO,
+                    )
+                    return _construir_tramite_email(tid, email, deduccion, resultado)
+
+                tramite, es_nuevo = await ingestar_documentos(
+                    clasificaciones=clasificaciones,
+                    crear_tramite_fn=_crear_tramite_email,
                     in_reply_to=email.in_reply_to or None,
                     references=email.references or None,
                     asunto=email.asunto or None,
+                    archivos={a.nombre: (a.contenido, a.content_type) for a in email.adjuntos},
+                    remitente=email.remitente,
+                    tramite_id_nuevo=tramite_id,
                 )
-                if tramite_existente is not None:
-                    await adjuntar_a_tramite(tramite_existente, email, clasificaciones)
+
+                if es_nuevo:
+                    logger.info(
+                        "Trámite %s creado — tipo=%s subtipo=%s estado=%s",
+                        tramite_id, tramite.get("tipo"), tramite.get("subtipo"), tramite.get("estado"),
+                    )
+                else:
                     logger.info(
                         "Email %s correlacionado con trámite %s — documentos adjuntados, cotejo actualizado.",
-                        email.message_id, tramite_existente["id"],
+                        email.message_id, tramite["id"],
                     )
-                    continue
-
-                # PASO 2: Deducir tipo y subtipo reales a partir de las clasificaciones
-                tipos_clasificados = [clf.tipo_detectado for clf in clasificaciones.values()]
-                deduccion = deducir_tipo_tramite(tipos_clasificados)
-
-                # PASO 3: Correr el pipeline completo con tipo y subtipo correctos
-                resultado = await _pipeline.procesar_email(
-                    email_entrante=email,
-                    tipo_tramite=deduccion.tipo or TipoTramite.TRANSFERENCIA,
-                    tramite_id=tramite_id,
-                    gestoria_email=email.remitente,
-                    subtipo_tramite=deduccion.subtipo or SubtipoTramite.NINGUNO,
-                )
-
-                # DEUDA CAPA 4: trámite guardado en memoria (Opción A).
-                # Si el servidor reinicia, los registros de email_procesado y avisos
-                # en BD quedarán huérfanos (tramite_id sin tramite en memoria).
-                # Solución definitiva: migrar a escribir en tabla tramites de PostgreSQL.
-                tramite = _construir_tramite_email(tramite_id, email, deduccion, resultado)
-                registro_tramites.agregar_tramite(tramite)
-
-                logger.info(
-                    "Trámite %s creado — tipo=%s subtipo=%s estado=%s",
-                    tramite_id, tramite["tipo"], tramite["subtipo"], tramite["estado"],
-                )
 
         except asyncio.CancelledError:
             logger.info("Worker email detenido.")

@@ -72,6 +72,7 @@ tbody tr.sel td{background:#d8eee5}
 .b-dgt{background:#EAF3DE;color:#27500A}
 .b-cadeteria{background:#EEEDFE;color:#3C3489}
 .b-cerrado{background:#F1EFE8;color:#444441}
+.b-sin-corr{background:#F5F5F5;color:#888}
 .docs-cell{font-size:11px;color:var(--ink3)}
 .docs-cell b{color:var(--ink2);font-weight:500}
 .falt{font-size:10px;color:var(--amber);display:flex;align-items:center;gap:3px;margin-top:2px}
@@ -384,6 +385,7 @@ const BADGE = {
   listo_dgt:          ['b-dgt','Listo DGT'],
   en_cadeteria:       ['b-cadeteria','En cadetería'],
   cerrado:            ['b-cerrado','Cerrado'],
+  sin_correlacionar:  ['b-sin-corr','Sin correlacionar'],
 };
 const badgeHtml = e => {
   const [c, l] = BADGE[e] || ['b-cerrado', e];

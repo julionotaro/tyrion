@@ -101,9 +101,18 @@ def test_sin_correlacion_retorna_none():
     assert resultado is None
 
 
-def test_correlacion_por_matricula_solo_estado_pendiente():
-    """La búsqueda por matrícula no aplica a trámites en listo_dgt."""
+def test_correlacion_listo_dgt_sigue_correlacionando():
+    """listo_dgt sigue siendo correlacionable — solo 'cerrado' queda excluido."""
     tramite = _tramite_base(matricula="1234TST", estado="listo_dgt")
+    registro_tramites.agregar_tramite(tramite)
+
+    email = _Email(asunto="Docs matrícula 1234 TST")
+    resultado = registro_tramites.buscar_tramite_para_respuesta(email)
+    assert resultado is not None
+
+
+def test_correlacion_cerrado_no_correlaciona():
+    tramite = _tramite_base(matricula="1234TST", estado="cerrado")
     registro_tramites.agregar_tramite(tramite)
 
     email = _Email(asunto="Docs matrícula 1234 TST")
