@@ -34,7 +34,7 @@ DATOS_COMPLETOS = {
     },
     # B3: cet + bastidor añadidos al modelo_620 (mismo cruce)
     TipoDocumento.MODELO_620: {
-        "importe": "487.50", "transmitente": "Pedro López",
+        "matricula": "1234ABC", "importe": "487.50", "transmitente": "Pedro López",
         "adquirente": "María García", "fecha_devengo": "2026-06-01",
         "cet": "CET-20260601-001", "bastidor": "WVW12345",
     },
@@ -86,8 +86,8 @@ class TestModelo620:
         resultado = _parsear_respuesta(_payload("modelo_620", 0.88, {}), None)
         assert resultado.confianza_score <= 0.5
         faltantes = set(resultado.campos_faltantes)
-        # B3: cet y bastidor añadidos (cruce con CTI — matriz §9.2)
-        assert {"importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"}.issubset(faltantes)
+        # matrícula añadida como clave de correlación; cet y bastidor para cruce CTI (matriz §9.2)
+        assert {"matricula", "importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"}.issubset(faltantes)
 
     def test_solo_importe_penaliza(self):
         resultado = _parsear_respuesta(_payload("modelo_620", 0.88, {"importe": "350"}), None)

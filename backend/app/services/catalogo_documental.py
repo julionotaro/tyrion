@@ -80,7 +80,7 @@ def _init_campos_requeridos() -> dict:
         D.CTI: ["matricula", "dni_adquirente", "dni_transmitente", "cet"],
         D.PERMISO_CIRCULACION: ["matricula", "titular", "bastidor"],
         # cet: Código Electrónico de Transmisión — cruce CTI↔620 solo en transferencia estándar
-        D.MODELO_620: ["importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"],
+        D.MODELO_620: ["matricula", "importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"],
         D.DNI: ["nombre", "numero_documento"],
         # B7: bastidor es clave de cruce estable (matrícula puede cambiar — instructivo C.1)
         D.CONTRATO_COMPRAVENTA: ["transmitente", "adquirente", "matricula", "bastidor", "precio"],
@@ -263,7 +263,8 @@ RASGOS_DISTINTIVOS = {
     TipoDocumento.MODELO_620: (
         "Formulario tributario del Impuesto de Transmisiones Patrimoniales. "
         "Lleva el número '620', casillas de liquidación, importe del impuesto, "
-        "datos de transmitente y adquirente. NO autoriza circulación."
+        "datos de transmitente y adquirente, matrícula y bastidor del vehículo. "
+        "NO autoriza circulación."
     ),
     TipoDocumento.CTI: (
         "Formulario oficial DGT de Cambio de Titularidad. Solicita el cambio de titular "
