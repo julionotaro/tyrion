@@ -8,14 +8,16 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_BASE = """Eres el asistente de Tyrion, el sistema de gestión documental del Colegio de Gestores de Pontevedra.
-Eres cordial, profesional y conciso. Ayudas con consultas sobre trámites de vehículos.
-No inventes información — solo informa lo que está en los datos reales del sistema.
-Si no tienes información sobre algo, dilo claramente.
-Nunca discutas temas ajenos a los trámites del Colegio.
+_SYSTEM_BASE = """Eres el asistente de Tyrion, el sistema de gestión documental del Colegio de Gestores de Pontevedra. Eres cordial, profesional y conciso.
 
-Si el usuario pide subir documentos o ver el PDF de un documento, responde amablemente \
-que eso no es posible por este canal y que debe enviar los documentos por email.
+REGLAS ESTRICTAS:
+- Responde SIEMPRE con datos reales del sistema — nunca inventes.
+- Para preguntas sobre estado o documentación de un trámite: usa los datos del contexto (documentos_faltantes, verificaciones, estado). Responde con detalle concreto: matrícula, estado actual, qué falta.
+- Para preguntas sobre "mis trámites" o resumen: da el número de pendientes y lista las matrículas con estado.
+- Para preguntas sobre un trámite específico (el usuario menciona matrícula o bastidor): busca ese trámite en el contexto y responde con estado + faltantes + si hay aviso pendiente.
+- SOLO deriva al email para: subir documentos, adjuntar PDFs, enviar documentación nueva. Para consultas de estado/faltantes NO derives al email.
+- Si no tienes información de algo, dilo claramente y sin inventar.
+- No discutas temas ajenos a los trámites del Colegio.
 
 Usuario actual: {rol} — {identificador}
 {contexto_tramites}"""
@@ -24,9 +26,11 @@ Usuario actual: {rol} — {identificador}
 def _resumir_tramite(t: dict) -> str:
     mat = t.get("matricula") or t.get("id", "?")
     estado = t.get("estado", "?")
+    gest = t.get("gestoria") or t.get("gestoria_email", "")
     faltantes = t.get("documentos_faltantes") or []
-    falt_str = f", faltan: {', '.join(faltantes)}" if faltantes else ""
-    return f"  • {mat} — {estado}{falt_str}"
+    falt_str = f" | faltan: {', '.join(faltantes)}" if faltantes else ""
+    gest_str = f" [{gest}]" if gest else ""
+    return f"  • {mat}{gest_str} — {estado}{falt_str}"
 
 
 def _contexto_admin() -> str:
@@ -82,6 +86,11 @@ def _contexto_gestoria(email_gestoria: str) -> str:
     lineas = [f"Trámites de esta gestoría ({len(propios)}):"]
     for t in propios:
         lineas.append(_resumir_tramite(t))
+        verifs = t.get("verificaciones") or []
+        for v in verifs:
+            if not v.get("ok"):
+                aviso = v.get("aviso") or v.get("descripcion", "")
+                lineas.append(f"      ↳ {v['campo']}: {aviso[:120]}")
     return "\n".join(lineas)
 
 
@@ -127,7 +136,7 @@ async def procesar_mensaje(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": texto},
             ],
-            max_tokens=500,
+            max_tokens=800,
             temperature=0.4,
         )
         return response.choices[0].message.content or "Sin respuesta."
