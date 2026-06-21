@@ -32,11 +32,11 @@ DATOS_COMPLETOS = {
         "matricula": "1234 ABC", "dni_adquirente": "12345678A", "dni_transmitente": "87654321B",
         "cet": "CET-20260601-001",
     },
-    # B3: cet + bastidor añadidos al modelo_620 (mismo cruce)
+    # B3: nif_adquirente / nif_transmitente (cotejeables); transmitente/adquirente son informativos
     TipoDocumento.MODELO_620: {
-        "matricula": "1234ABC", "importe": "487.50", "transmitente": "Pedro López",
-        "adquirente": "María García", "fecha_devengo": "2026-06-01",
-        "cet": "CET-20260601-001", "bastidor": "WVW12345",
+        "matricula": "1234ABC", "bastidor": "WVW12345", "importe": "487.50",
+        "fecha_devengo": "2026-06-01", "cet": "CET-20260601-001",
+        "nif_adquirente": "12345678A", "nif_transmitente": "87654321B",
     },
     TipoDocumento.ANEXO_650: {
         "matricula": "1234ABC", "bastidor": "WVW12345", "valor_vehiculo": "12000",
@@ -86,13 +86,48 @@ class TestModelo620:
         resultado = _parsear_respuesta(_payload("modelo_620", 0.88, {}), None)
         assert resultado.confianza_score <= 0.5
         faltantes = set(resultado.campos_faltantes)
-        # matrícula añadida como clave de correlación; cet y bastidor para cruce CTI (matriz §9.2)
-        assert {"matricula", "importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"}.issubset(faltantes)
+        assert {"matricula", "bastidor", "importe", "nif_adquirente", "nif_transmitente", "fecha_devengo", "cet"}.issubset(faltantes)
 
     def test_solo_importe_penaliza(self):
         resultado = _parsear_respuesta(_payload("modelo_620", 0.88, {"importe": "350"}), None)
         assert resultado.confianza_score <= 0.5
-        assert "transmitente" in resultado.campos_faltantes
+        assert "nif_transmitente" in resultado.campos_faltantes
+
+    def test_cet_no_cuenta_como_ausente(self):
+        """cet='NO' debe tratarse como campo faltante, no como presente."""
+        datos = {
+            "matricula": "5042HZM", "bastidor": "LKXHYA9820K111111",
+            "importe": "70.50", "fecha_devengo": "15/05/2026",
+            "nif_adquirente": "35306584C", "nif_transmitente": "14958073T",
+            "cet": "NO",
+        }
+        completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.MODELO_620, datos)
+        assert not completo
+        assert "cet" in faltantes
+
+
+# ── CTI — CET normalization ───────────────────────────────────────────────────
+
+def test_cti_cet_no_cuenta_como_ausente():
+    """cti con cet='NO' → cet en faltantes (González Fernández caso real)."""
+    datos = {
+        "matricula": "5042HZM", "dni_adquirente": "35306584C",
+        "dni_transmitente": "14958073T", "cet": "NO",
+    }
+    completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, datos)
+    assert not completo
+    assert "cet" in faltantes
+
+
+def test_cet_valor_real_cuenta_como_presente():
+    """cet con código alfanumérico real → no faltante."""
+    datos = {
+        "matricula": "5042HZM", "dni_adquirente": "35306584C",
+        "dni_transmitente": "14958073T", "cet": "CET-20260601-001",
+    }
+    completo, faltantes = evaluar_completitud_extraccion(TipoDocumento.CTI, datos)
+    assert completo
+    assert "cet" not in faltantes
 
 
 # ── ANEXO_650 ─────────────────────────────────────────────────────────────────

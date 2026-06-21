@@ -80,7 +80,8 @@ def _init_campos_requeridos() -> dict:
         D.CTI: ["matricula", "dni_adquirente", "dni_transmitente", "cet"],
         D.PERMISO_CIRCULACION: ["matricula", "titular", "bastidor"],
         # cet: Código Electrónico de Transmisión — cruce CTI↔620 solo en transferencia estándar
-        D.MODELO_620: ["matricula", "importe", "transmitente", "adquirente", "fecha_devengo", "cet", "bastidor"],
+        D.MODELO_620: ["matricula", "bastidor", "importe", "fecha_devengo", "cet",
+                       "nif_adquirente", "nif_transmitente"],
         D.DNI: ["nombre", "numero_documento"],
         # B7: bastidor es clave de cruce estable (matrícula puede cambiar — instructivo C.1)
         D.CONTRATO_COMPRAVENTA: ["transmitente", "adquirente", "matricula", "bastidor", "precio"],
@@ -117,9 +118,36 @@ def _init_campos_requeridos() -> dict:
     }
 
 
+# Campos adicionales a extraer para UI/cruces — NO bloquean validez del documento.
+# El clasificador los pide al modelo pero evaluar_completitud_extraccion los ignora.
+CAMPOS_EXTRA_EXTRACCION: dict["TipoDocumento", list[str]] = {}
+
+
+def _init_campos_extra() -> dict:
+    D = TipoDocumento
+    return {
+        # Nombres de las partes: informativos para mostrar en UI y cruces manuales.
+        # dni_adquirente / nif_adquirente son los campos de identidad cotejeables.
+        D.CTI: ["nombre_adquirente", "nombre_transmitente"],
+        D.MODELO_620: ["nombre_adquirente", "nombre_transmitente"],
+    }
+
+
+# Valores de CET que indican ausencia real de código electrónico.
+_CET_AUSENTE: frozenset = frozenset({"NO", "N/A", "-", ""})
+
+
 def campos_requeridos(tipo: "TipoDocumento") -> list[str]:
     """Devuelve los campos mínimos de extracción para el tipo dado."""
     return CAMPOS_REQUERIDOS.get(tipo, [])
+
+
+def _valor_efectivo(campo: str, datos: dict):
+    """Devuelve el valor del campo, normalizando CET='NO' como ausencia."""
+    valor = datos.get(campo)
+    if campo == "cet" and isinstance(valor, str) and valor.strip().upper() in _CET_AUSENTE:
+        return None
+    return valor
 
 
 def evaluar_completitud_extraccion(
@@ -129,14 +157,14 @@ def evaluar_completitud_extraccion(
     """Devuelve (esta_completo, campos_faltantes) para el tipo y los datos dados.
 
     Un campo se considera presente si existe en datos_extraidos con un valor
-    no nulo y no vacío.
+    no nulo y no vacío. El campo 'cet' con valor 'NO'/'N/A'/'-' se trata como ausente.
     """
     requeridos = campos_requeridos(tipo)
     if not requeridos:
         return True, []
     faltantes = [
         campo for campo in requeridos
-        if not datos_extraidos.get(campo)
+        if not _valor_efectivo(campo, datos_extraidos)
     ]
     return len(faltantes) == 0, faltantes
 
@@ -358,3 +386,4 @@ RASGOS_DISTINTIVOS = {
 
 # Inicializar aquí, después de que TipoDocumento esté completamente definido
 CAMPOS_REQUERIDOS.update(_init_campos_requeridos())
+CAMPOS_EXTRA_EXTRACCION.update(_init_campos_extra())

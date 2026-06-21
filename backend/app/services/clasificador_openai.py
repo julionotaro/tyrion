@@ -22,6 +22,7 @@ from app.services.catalogo_documental import (
     RASGOS_DISTINTIVOS,
     CONFUSIONES_FRECUENTES,
     CAMPOS_REQUERIDOS,
+    CAMPOS_EXTRA_EXTRACCION,
     evaluar_completitud_extraccion,
 )
 
@@ -40,9 +41,9 @@ def _construir_prompt_sistema() -> str:
     )
     tipos_validos = ", ".join(t.value for t in TipoDocumento)
     campos_por_tipo = "\n".join(
-        f"  - {tipo.value}: {campos}"
+        f"  - {tipo.value}: {campos + CAMPOS_EXTRA_EXTRACCION.get(tipo, [])}"
         for tipo, campos in CAMPOS_REQUERIDOS.items()
-        if campos  # omitir tipos sin campos (hoja_caja, desconocido, etc.)
+        if campos or CAMPOS_EXTRA_EXTRACCION.get(tipo)
     )
     return f"""Eres el clasificador documental de una gestoría de trámites de vehículos ante la DGT española.
 

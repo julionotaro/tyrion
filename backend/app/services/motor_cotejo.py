@@ -396,3 +396,64 @@ class MotorCotejo:
         ]
 
         return "\n".join(lineas)
+
+
+def verificar_identidad_transferencia(clasificaciones: dict) -> list[dict]:
+    """Cruza DNI adquirente y transmitente entre CTI y modelo_620.
+
+    Acepta tanto ResultadoClasificacion como dicts con 'campos_extraidos'.
+    Devuelve lista de verificaciones: {campo, ok, vals, aviso?}.
+    """
+    def _datos(clf) -> dict:
+        if hasattr(clf, "datos_extraidos"):
+            return clf.datos_extraidos or {}
+        if isinstance(clf, dict):
+            return {c["campo"]: c["valor"] for c in clf.get("campos_extraidos", [])}
+        return {}
+
+    def _tipo(clf) -> str:
+        if hasattr(clf, "tipo_detectado"):
+            t = clf.tipo_detectado
+            return t.value if hasattr(t, "value") else str(t)
+        if isinstance(clf, dict):
+            return clf.get("tipo_detectado", "")
+        return ""
+
+    cti_datos: dict = {}
+    m620_datos: dict = {}
+    for clf in clasificaciones.values():
+        t = _tipo(clf)
+        if t == "cti":
+            cti_datos = _datos(clf)
+        elif t == "modelo_620":
+            m620_datos = _datos(clf)
+
+    def _norm(v: str) -> str:
+        return (v or "").replace(" ", "").replace("-", "").upper()
+
+    verificaciones: list[dict] = []
+    cruces = [
+        ("dni_adquirente", "nif_adquirente", "DNI adquirente"),
+        ("dni_transmitente", "nif_transmitente", "DNI transmitente"),
+    ]
+    for campo_cti, campo_620, label in cruces:
+        val_cti = cti_datos.get(campo_cti)
+        val_620 = m620_datos.get(campo_620)
+        if not val_cti or not val_620:
+            continue
+        ok = _norm(val_cti) == _norm(val_620)
+        entry: dict = {
+            "campo": f"cruce_{campo_cti}",
+            "ok": ok,
+            "vals": [
+                {"doc": "cti", "val": val_cti},
+                {"doc": "modelo_620", "val": val_620},
+            ],
+        }
+        if not ok:
+            entry["aviso"] = (
+                f"{label} no coincide entre CTI ({val_cti}) y modelo 620 ({val_620})."
+            )
+        verificaciones.append(entry)
+
+    return verificaciones

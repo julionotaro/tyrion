@@ -36,8 +36,9 @@ def test_bastidor_en_campos_requeridos_modelo620():
 def test_cet_consistente_mismos_datos():
     """Dos documentos con mismo CET → ambos completos, cruce OK."""
     datos_cti = {"matricula": "1234ABC", "dni_adquirente": "12345678A", "dni_transmitente": "87654321B", "cet": "CET-001"}
-    datos_620 = {"matricula": "1234ABC", "importe": "400", "transmitente": "Juan", "adquirente": "Ana",
-                 "fecha_devengo": "2026-01-01", "cet": "CET-001", "bastidor": "WBA1"}
+    datos_620 = {"matricula": "1234ABC", "bastidor": "WBA1", "importe": "400",
+                 "fecha_devengo": "2026-01-01", "cet": "CET-001",
+                 "nif_adquirente": "12345678A", "nif_transmitente": "87654321B"}
     ok_cti, _ = evaluar_completitud_extraccion(TipoDocumento.CTI, datos_cti)
     ok_620, _ = evaluar_completitud_extraccion(TipoDocumento.MODELO_620, datos_620)
     assert ok_cti and ok_620
