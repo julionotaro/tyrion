@@ -184,6 +184,15 @@ def _construir_tramite_email(
     matricula, bastidor = extraer_identificador(tipo_str, resultado_pipeline.clasificaciones)
     verificaciones = _serializar_verificaciones(checklist, resultado_pipeline.clasificaciones)
 
+    from app.services.motor_cruce import cotejar_datos as _cotejar_datos
+    docs_por_tipo_email = {
+        clf.tipo_detectado.value: (clf.datos_extraidos or {})
+        for clf in resultado_pipeline.clasificaciones.values()
+        if hasattr(clf, "tipo_detectado") and clf.tipo_detectado
+    }
+    cruces = _cotejar_datos(tipo_str, subtipo_str, docs_por_tipo_email)
+    verificaciones = verificaciones + cruces
+
     return {
         "id": tramite_id,
         "tipo": tipo_str,

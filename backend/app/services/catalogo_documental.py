@@ -128,8 +128,10 @@ def _init_campos_extra() -> dict:
     return {
         # Nombres de las partes: informativos para mostrar en UI y cruces manuales.
         # dni_adquirente / nif_adquirente son los campos de identidad cotejeables.
-        D.CTI: ["nombre_adquirente", "nombre_transmitente"],
+        D.CTI: ["nombre_adquirente", "nombre_transmitente", "bastidor"],
         D.MODELO_620: ["nombre_adquirente", "nombre_transmitente"],
+        D.MODELO_650: ["nombre_sujeto_pasivo", "nombre_causante", "representante", "matricula", "bastidor"],
+        D.DECLARACION_RESPONSABLE_FALLECIMIENTO: ["bastidor"],
     }
 
 

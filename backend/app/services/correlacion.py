@@ -214,9 +214,27 @@ def recotejar_tramite(tramite: dict) -> None:
             requisitos = [RequisitoCotejo(r) for r in cr.requisitos]
 
     motor = MotorCotejo()
-    checklist = motor.evaluar_checklist(tipo_tramite, docs_por_requisito, requisitos=requisitos)
+    checklist = motor.evaluar_checklist(
+        tipo_tramite, docs_por_requisito, requisitos=requisitos,
+        familia=tipo_tramite.value, subtipo=subtipo_str,
+    )
 
-    tramite["verificaciones"] = serializar_verificaciones(checklist, docs_por_requisito)
+    from app.services.motor_cruce import cotejar_datos as _cotejar_datos
+    tipo_tramite_str = tramite.get("tipo", "")
+    subtipo_cruce = tramite.get("subtipo", "ninguno")
+    docs_por_tipo: dict[str, dict] = {}
+    for doc in tramite.get("documentos", []):
+        tipo_doc = doc.get("tipo_detectado", "")
+        doc_id = doc.get("id", "")
+        doc_store = DOCUMENTOS_CARGA.get(doc_id, {})
+        campos = doc_store.get("campos_extraidos") or []
+        datos = {c["campo"]: c["valor"] for c in campos}
+        if tipo_doc and datos:
+            docs_por_tipo.setdefault(tipo_doc, {}).update(datos)
+    verifs = _cotejar_datos(tipo_tramite_str, subtipo_cruce, docs_por_tipo)
+    tramite["verificaciones_cruce"] = verifs
+
+    tramite["verificaciones"] = serializar_verificaciones(checklist, docs_por_requisito) + verifs
     tramite["documentos_faltantes"] = checklist.requisitos_faltantes
     tramite["documentos_evidencia"] = checklist.requisitos_evidencia
 
@@ -230,6 +248,21 @@ def recotejar_tramite(tramite: dict) -> None:
     else:
         tramite["estado"] = "pendiente_gestoria"
         tramite["alerta"] = True
+
+    # Reabrir si tenía listo_dgt pero hay discrepancias CRÍTICAS
+    if tramite.get("estado") == "listo_dgt":
+        criticas = [
+            v for v in verifs
+            if v.get("estado") == "discrepancia" and v.get("criticidad") == "CRITICA"
+        ]
+        if criticas:
+            tramite["estado"] = "pendiente_gestoria"
+            tramite["alerta"] = True
+            tramite.setdefault("historial", []).append({
+                "momento": datetime.now(timezone.utc).isoformat(),
+                "evento": f"Re-abierto por discrepancia crítica: {criticas[0].get('aviso','')}",
+                "actor": "tyrion",
+            })
 
 
 def adjuntar_documentos(

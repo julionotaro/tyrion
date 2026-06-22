@@ -312,7 +312,9 @@ def procesar_sesion(payload: ProcesarRequest) -> ProcesarResponse:
     }
     requisitos = _requisitos_del_tipo(tipo, subtipo)
     estado: EstadoChecklist = _motor.evaluar_checklist(
-        tipo, docs_por_requisito, requisitos=requisitos
+        tipo, docs_por_requisito, requisitos=requisitos,
+        familia=_FAMILIA_DE_TIPO[tipo].value,
+        subtipo=subtipo.value,
     )
 
     # 3. Determinar estado y preparar aviso si falta documentación
@@ -334,6 +336,7 @@ def procesar_sesion(payload: ProcesarRequest) -> ProcesarResponse:
         motivo=deduccion.motivo, subtipo=subtipo.value,
         aviso_preparado=aviso_preparado,
         faltantes=estado.requisitos_faltantes,
+        verificaciones=estado.verificaciones,
     )
     registro_tramites.agregar_tramite(tramite)
     registro_tramites.marcar_sesion_procesada(payload.sesion_id, tramite_id)
@@ -453,6 +456,7 @@ def _construir_tramite(
     subtipo: str = "ninguno",
     aviso_preparado: bool = False,
     faltantes: list[str] | None = None,
+    verificaciones: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Crea el dict del trámite con la forma que espera la Pantalla de Control."""
     documentos = [
@@ -479,6 +483,14 @@ def _construir_tramite(
                 "requisito": req,
             })
 
+    avisos_criticos = [
+        {"tipo": "AVISO_1", "enviado_at": ahora, "requisito": v["aviso"]}
+        for v in (verificaciones or [])
+        if v.get("estado") == "discrepancia" and v.get("criticidad") == "CRITICA"
+        and v.get("aviso")
+    ]
+    avisos_pendientes.extend(avisos_criticos)
+
     return {
         "id": tramite_id,
         "tipo": tipo.value if tipo else "SIN_DETERMINAR",
@@ -494,4 +506,5 @@ def _construir_tramite(
         "documentos": documentos,
         "historial": historial,
         "avisos_pendientes": avisos_pendientes,
+        "verificaciones": verificaciones or [],
     }

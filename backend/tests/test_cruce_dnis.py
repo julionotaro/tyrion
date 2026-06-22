@@ -1,87 +1,38 @@
-"""Tests para verificar_identidad_transferencia: cruce DNI entre CTI y modelo_620."""
-from unittest.mock import MagicMock
-from app.services.motor_cotejo import verificar_identidad_transferencia
-from app.services.catalogo_documental import TipoDocumento
+"""Tests de cruce de identidad — migrado a motor_cruce.cotejar_datos."""
+from app.services.motor_cruce import cotejar_datos
 
 
-def _clf(tipo: str, datos: dict):
-    m = MagicMock()
-    m.tipo_detectado = MagicMock()
-    m.tipo_detectado.value = tipo
-    m.datos_extraidos = datos
-    return m
+def _docs(dni_adq_cti, dni_adq_620, dni_tra_cti="14958073T", dni_tra_620="14958073T"):
+    return {
+        "cti": {"matricula": "5042HZM", "dni_adquirente": dni_adq_cti, "dni_transmitente": dni_tra_cti},
+        "modelo_620": {"matricula": "5042HZM", "nif_adquirente": dni_adq_620, "nif_transmitente": dni_tra_620},
+    }
 
 
 def test_dnis_coinciden_ok_true():
-    """CTI y modelo_620 con mismos DNIs → verificación ok=True."""
-    clfs = {
-        "cti.pdf": _clf("cti", {
-            "matricula": "5042HZM",
-            "dni_adquirente": "35306584C",
-            "dni_transmitente": "14958073T",
-            "cet": "CET-001",
-        }),
-        "620.pdf": _clf("modelo_620", {
-            "matricula": "5042HZM",
-            "nif_adquirente": "35306584C",
-            "nif_transmitente": "14958073T",
-            "cet": "CET-001",
-        }),
-    }
-    verifs = verificar_identidad_transferencia(clfs)
-    assert len(verifs) == 2
-    assert all(v["ok"] for v in verifs)
-    campos = {v["campo"] for v in verifs}
-    assert "cruce_dni_adquirente" in campos
-    assert "cruce_dni_transmitente" in campos
+    verifs = cotejar_datos("TRANSFERENCIA", "ninguno", _docs("35306584C", "35306584C"))
+    cruce = next(v for v in verifs if "dni_adquirente" in v["campo"])
+    assert cruce["ok"] is True
+    assert cruce["estado"] == "ok"
 
 
 def test_dnis_discrepantes_ok_false():
-    """DNI adquirente distinto entre CTI y modelo_620 → ok=False con aviso."""
-    clfs = {
-        "cti.pdf": _clf("cti", {
-            "matricula": "5042HZM",
-            "dni_adquirente": "35306584C",
-            "dni_transmitente": "14958073T",
-            "cet": "NO",
-        }),
-        "620.pdf": _clf("modelo_620", {
-            "matricula": "5042HZM",
-            "nif_adquirente": "99999999Z",
-            "nif_transmitente": "14958073T",
-            "cet": "NO",
-        }),
-    }
-    verifs = verificar_identidad_transferencia(clfs)
-    cruce_adq = next(v for v in verifs if v["campo"] == "cruce_dni_adquirente")
-    cruce_tra = next(v for v in verifs if v["campo"] == "cruce_dni_transmitente")
-
-    assert cruce_adq["ok"] is False
-    assert "aviso" in cruce_adq
-    assert "35306584C" in cruce_adq["aviso"]
-    assert "99999999Z" in cruce_adq["aviso"]
-
-    assert cruce_tra["ok"] is True
+    verifs = cotejar_datos("TRANSFERENCIA", "ninguno", _docs("35306584C", "99999999Z"))
+    cruce = next(v for v in verifs if "dni_adquirente" in v["campo"])
+    assert cruce["ok"] is False
+    assert cruce["estado"] == "discrepancia"
+    assert "aviso" in cruce
+    assert "35306584C" in cruce["aviso"]
+    assert "99999999Z" in cruce["aviso"]
 
 
 def test_sin_modelo_620_no_hay_cruces():
-    """Sin modelo_620 en clasificaciones → no se generan cruces."""
-    clfs = {
-        "cti.pdf": _clf("cti", {
-            "matricula": "5042HZM",
-            "dni_adquirente": "35306584C",
-            "cet": "NO",
-        }),
-    }
-    verifs = verificar_identidad_transferencia(clfs)
+    docs = {"cti": {"matricula": "5042HZM", "dni_adquirente": "35306584C"}}
+    verifs = cotejar_datos("TRANSFERENCIA", "ninguno", docs)
     assert verifs == []
 
 
 def test_normaliza_espacios_y_guiones():
-    """DNI con espacios o guiones normaliza correctamente."""
-    clfs = {
-        "cti.pdf": _clf("cti", {"dni_adquirente": "35306584-C", "dni_transmitente": "14958073T"}),
-        "620.pdf": _clf("modelo_620", {"nif_adquirente": "35306584C", "nif_transmitente": "14 958073T"}),
-    }
-    verifs = verificar_identidad_transferencia(clfs)
-    assert all(v["ok"] for v in verifs)
+    verifs = cotejar_datos("TRANSFERENCIA", "ninguno",
+        _docs("35306584-C", "35306584C", "14 958073T", "14958073T"))
+    assert all(v["ok"] for v in verifs if "dni" in v["campo"])

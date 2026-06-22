@@ -66,6 +66,14 @@ class EstadoChecklist:
     requisitos_faltantes: list[str] = field(default_factory=list)
     requisitos_evidencia: list[str] = field(default_factory=list)   # compatible ≠ válido
     requisitos_rechazados: list[str] = field(default_factory=list)
+    verificaciones: list[dict] = field(default_factory=list)
+
+    @property
+    def verificaciones_fallidas(self) -> list[dict]:
+        return [
+            v for v in self.verificaciones
+            if v.get("estado") == "discrepancia" and v.get("criticidad") == "CRITICA"
+        ]
 
     @property
     def completo(self) -> bool:
@@ -74,6 +82,7 @@ class EstadoChecklist:
             not self.requisitos_faltantes
             and not self.requisitos_evidencia
             and not self.requisitos_rechazados
+            and not self.verificaciones_fallidas
         )
 
     @property
@@ -82,7 +91,10 @@ class EstadoChecklist:
         Los rechazados también van a gestoría (T+0): se les pide el documento correcto.
         El escalado al admin solo ocurre si la gestoría no responde (T+60 via timers)."""
         return bool(
-            self.requisitos_faltantes or self.requisitos_evidencia or self.requisitos_rechazados
+            self.requisitos_faltantes
+            or self.requisitos_evidencia
+            or self.requisitos_rechazados
+            or self.verificaciones_fallidas
         )
 
     @property
@@ -211,6 +223,13 @@ def resolver_checklist(
     return ChecklistResuelto(requisitos=base, flags=flags)
 
 
+_FAMILIA_DESDE_TIPO: dict[TipoTramite, str] = {
+    TipoTramite.TRANSFERENCIA: "TRANSFERENCIA",
+    TipoTramite.MATRICULACION: "MATRICULACION",
+    TipoTramite.BAJA: "BAJA",
+}
+
+
 class MotorCotejo:
     """Coteja documentos clasificados contra el checklist del trámite.
 
@@ -291,6 +310,8 @@ class MotorCotejo:
         tipo_tramite: TipoTramite,
         documentos_por_requisito: dict[str, ResultadoClasificacion],
         requisitos: list[RequisitoCotejo] | None = None,
+        familia: str = "",
+        subtipo: str = "ninguno",
     ) -> EstadoChecklist:
         """Evalúa el checklist completo de un trámite.
 
@@ -344,6 +365,18 @@ class MotorCotejo:
                     tipo_tramite.value, req.requisito, resultado.motivo,
                 )
 
+        # Tras el bucle — cruce de datos entre documentos
+        from app.services.motor_cruce import cotejar_datos
+        docs_por_tipo: dict[str, dict] = {}
+        for tipo_req, clf in documentos_por_requisito.items():
+            if hasattr(clf, "datos_extraidos"):
+                docs_por_tipo[tipo_req] = clf.datos_extraidos or {}
+            elif isinstance(clf, dict):
+                docs_por_tipo[tipo_req] = clf
+        fam = familia or _FAMILIA_DESDE_TIPO.get(tipo_tramite, "")
+        if fam:
+            estado.verificaciones = cotejar_datos(fam, subtipo, docs_por_tipo)
+
         return estado
 
     def preparar_mensaje_gestoria(
@@ -396,64 +429,3 @@ class MotorCotejo:
         ]
 
         return "\n".join(lineas)
-
-
-def verificar_identidad_transferencia(clasificaciones: dict) -> list[dict]:
-    """Cruza DNI adquirente y transmitente entre CTI y modelo_620.
-
-    Acepta tanto ResultadoClasificacion como dicts con 'campos_extraidos'.
-    Devuelve lista de verificaciones: {campo, ok, vals, aviso?}.
-    """
-    def _datos(clf) -> dict:
-        if hasattr(clf, "datos_extraidos"):
-            return clf.datos_extraidos or {}
-        if isinstance(clf, dict):
-            return {c["campo"]: c["valor"] for c in clf.get("campos_extraidos", [])}
-        return {}
-
-    def _tipo(clf) -> str:
-        if hasattr(clf, "tipo_detectado"):
-            t = clf.tipo_detectado
-            return t.value if hasattr(t, "value") else str(t)
-        if isinstance(clf, dict):
-            return clf.get("tipo_detectado", "")
-        return ""
-
-    cti_datos: dict = {}
-    m620_datos: dict = {}
-    for clf in clasificaciones.values():
-        t = _tipo(clf)
-        if t == "cti":
-            cti_datos = _datos(clf)
-        elif t == "modelo_620":
-            m620_datos = _datos(clf)
-
-    def _norm(v: str) -> str:
-        return (v or "").replace(" ", "").replace("-", "").upper()
-
-    verificaciones: list[dict] = []
-    cruces = [
-        ("dni_adquirente", "nif_adquirente", "DNI adquirente"),
-        ("dni_transmitente", "nif_transmitente", "DNI transmitente"),
-    ]
-    for campo_cti, campo_620, label in cruces:
-        val_cti = cti_datos.get(campo_cti)
-        val_620 = m620_datos.get(campo_620)
-        if not val_cti or not val_620:
-            continue
-        ok = _norm(val_cti) == _norm(val_620)
-        entry: dict = {
-            "campo": f"cruce_{campo_cti}",
-            "ok": ok,
-            "vals": [
-                {"doc": "cti", "val": val_cti},
-                {"doc": "modelo_620", "val": val_620},
-            ],
-        }
-        if not ok:
-            entry["aviso"] = (
-                f"{label} no coincide entre CTI ({val_cti}) y modelo 620 ({val_620})."
-            )
-        verificaciones.append(entry)
-
-    return verificaciones
