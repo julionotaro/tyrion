@@ -19,25 +19,28 @@ class Gestoria:
     contacto: str = ""
     telefono: str = ""
     telegram_chat_id: str = ""
+    num_presentacion: str = ""
 
 
 # Store mutable en memoria
 _STORE: dict[str, Gestoria] = {}
 
-# Seed inicial
-_SEED: list[tuple[str, str]] = [
-    ("jlogistic3000@gmail.com",  "Gestoría JLogistic"),
-    ("ruiz@gestorias.es",        "Gestoria Ruiz"),
-    ("lopez@gestorias.es",       "Gestoria López"),
-    ("martin@gestorias.es",      "Gestoria Martín"),
-    ("fernandez@gestorias.es",   "Gestoria Fernández"),
-    ("carballal@gestorias.es",   "Gestoria Carballal"),
+# Seed inicial: (email, nombre, num_presentacion)
+_SEED: list[tuple[str, str, str]] = [
+    ("jlogistic3000@gmail.com",  "Gestoría JLogistic", "00008"),
+    ("ruiz@gestorias.es",        "Gestoria Ruiz",      "00005"),
+    ("lopez@gestorias.es",       "Gestoria López",     "00012"),
+    ("martin@gestorias.es",      "Gestoria Martín",    "00003"),
+    ("fernandez@gestorias.es",   "Gestoria Fernández", "00019"),
+    ("carballal@gestorias.es",   "Gestoria Carballal", "00007"),
 ]
 
 
 def _cargar_seed() -> None:
-    for email, nombre in _SEED:
-        _STORE[email.lower()] = Gestoria(email=email.lower(), nombre=nombre)
+    for email, nombre, num_presentacion in _SEED:
+        _STORE[email.lower()] = Gestoria(
+            email=email.lower(), nombre=nombre, num_presentacion=num_presentacion,
+        )
 
 
 _cargar_seed()
@@ -60,6 +63,7 @@ def crear(
     contacto: str = "",
     telefono: str = "",
     telegram_chat_id: str = "",
+    num_presentacion: str = "",
 ) -> dict[str, Any]:
     key = email.strip().lower()
     if key in _STORE:
@@ -68,6 +72,7 @@ def crear(
         email=key, nombre=nombre.strip(),
         contacto=contacto, telefono=telefono,
         telegram_chat_id=telegram_chat_id,
+        num_presentacion=num_presentacion,
     )
     _STORE[key] = g
     return asdict(g)
@@ -79,6 +84,7 @@ def actualizar(
     contacto: str | None = None,
     telefono: str | None = None,
     telegram_chat_id: str | None = None,
+    num_presentacion: str | None = None,
 ) -> dict[str, Any]:
     key = email.strip().lower()
     g = _STORE.get(key)
@@ -92,6 +98,8 @@ def actualizar(
         g.telefono = telefono
     if telegram_chat_id is not None:
         g.telegram_chat_id = telegram_chat_id
+    if num_presentacion is not None:
+        g.num_presentacion = num_presentacion
     return asdict(g)
 
 
@@ -99,6 +107,17 @@ def obtener_por_telegram_chat_id(chat_id: str) -> dict[str, Any] | None:
     """Devuelve la gestoría registrada con ese chat_id de Telegram, o None."""
     for g in _STORE.values():
         if g.telegram_chat_id and g.telegram_chat_id == chat_id:
+            return asdict(g)
+    return None
+
+
+def obtener_por_num_presentacion(num: str) -> dict[str, Any] | None:
+    """Devuelve la gestoría con ese número de presentación, o None."""
+    n = (num or "").strip()
+    if not n:
+        return None
+    for g in _STORE.values():
+        if g.num_presentacion and g.num_presentacion == n:
             return asdict(g)
     return None
 
@@ -120,7 +139,7 @@ def reset() -> None:
 # ── Compatibilidad ────────────────────────────────────────────────────────────
 
 # Alias de compatibilidad para tests legacy
-EMAIL_A_GESTORIA: dict[str, str] = {e: n for e, n in _SEED}
+EMAIL_A_GESTORIA: dict[str, str] = {e: n for e, n, _np in _SEED}
 
 
 def nombre_gestoria(email: str) -> str:

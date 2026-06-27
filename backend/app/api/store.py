@@ -10,8 +10,14 @@ from __future__ import annotations
 SESIONES_CARGA: dict = {}
 DOCUMENTOS_CARGA: dict = {}
 
+# Conciliación: planillas y hojas de caja cargadas, indexadas por clave de día.
+PLANILLAS_DIA: dict = {}
+HOJAS_CAJA: dict = {}
+
 
 def reset() -> None:
     """Solo para tests."""
     SESIONES_CARGA.clear()
     DOCUMENTOS_CARGA.clear()
+    PLANILLAS_DIA.clear()
+    HOJAS_CAJA.clear()

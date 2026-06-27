@@ -17,6 +17,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import Enum
@@ -46,6 +47,7 @@ class TramitePlanificado:
     matricula: str = ""
     nif_adquirente: str = ""
     num_expediente: str = ""
+    num_presentacion: str = ""
     nombre_titular: str = ""
     tipo_tramite: str = ""
 
@@ -138,6 +140,7 @@ def parse_relacion_transmisiones(
         try:
             t = TramitePlanificado(
                 num_expediente=_col(fila, 0),
+                num_presentacion=_col(fila, 0),
                 matricula=_col(fila, 1),
                 tasa=_col(fila, 2),
                 nif_adquirente=_col(fila, 3),
@@ -197,6 +200,7 @@ def parse_relacion_matriculas(
 
             t = TramitePlanificado(
                 num_expediente=_col(fila, 0),
+                num_presentacion=_col(fila, 0),
                 matricula=_col(fila, 1),
                 bastidor=_col(fila, 2),
                 nombre_titular=nombre_completo,
@@ -228,3 +232,123 @@ def _col(fila: list[str], idx: int) -> str:
     if idx < len(fila):
         return fila[idx].strip()
     return ""
+
+
+# ── Parser PDF (best-effort, basado en tokens) ──────────────────────────────────
+
+_PAT_FECHA = re.compile(r'\b(\d{2})/(\d{2})/(\d{4})\b')
+_PAT_NUM_PRESENTACION = re.compile(r'^\d{4,6}$')
+
+
+def _fecha_desde_texto(texto: str) -> date | None:
+    m = _PAT_FECHA.search(texto)
+    if not m:
+        return None
+    try:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return date(y, mo, d)
+    except (ValueError, TypeError):
+        return None
+
+
+def parse_planilla_pdf(
+    contenido: bytes,
+    fecha: date | None = None,
+    fuente: str = "tempus",
+) -> PlanillaDia:
+    """Parsea una planilla PDF exportada de Tempus (best-effort, basado en tokens).
+
+    Detecta el tipo por cabecera (TRANSMISIONES / MATRICULAS), extrae la fecha si
+    no se proporciona, y parsea las filas dividiendo cada línea en tokens. Si el
+    primer token es un índice numérico de fila, se interpreta el resto como datos.
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        logger.error("PyMuPDF (fitz) no instalado — no se puede parsear PDF.")
+        texto = ""
+    else:
+        texto = ""
+        try:
+            doc = fitz.open(stream=contenido, filetype="pdf")
+            for page in doc:
+                texto += page.get_text() + "\n"
+            doc.close()
+        except Exception as exc:
+            logger.error("Error abriendo PDF de planilla: %s", exc)
+            texto = ""
+
+    texto_up = texto.upper()
+    if "MATRICULA" in texto_up and "TRANSMISION" not in texto_up:
+        tipo = TipoPlanilla.MATRICULAS
+    elif "TRANSMISION" in texto_up:
+        tipo = TipoPlanilla.TRANSMISIONES
+    else:
+        # Default a transmisiones (caso mayoritario)
+        tipo = TipoPlanilla.TRANSMISIONES
+
+    planilla = PlanillaDia(
+        fecha=fecha or _fecha_desde_texto(texto) or date.today(),
+        tipo=tipo,
+        fuente=fuente,
+    )
+
+    for linea in texto.splitlines():
+        tokens = linea.split()
+        if not tokens:
+            continue
+        # La primera columna debe ser un índice de fila numérico
+        if not tokens[0].isdigit():
+            continue
+        datos = tokens[1:]
+        if not datos:
+            continue
+        # Buscar el número de presentación (primer token de 4-6 dígitos)
+        if not _PAT_NUM_PRESENTACION.match(datos[0]):
+            continue
+        try:
+            if tipo == TipoPlanilla.TRANSMISIONES:
+                # num_presentacion, matricula, tasa, nif, nombre...
+                num_pres = datos[0]
+                matricula = datos[1] if len(datos) > 1 else ""
+                tasa = datos[2] if len(datos) > 2 else ""
+                nif = datos[3] if len(datos) > 3 else ""
+                nombre = " ".join(datos[4:]) if len(datos) > 4 else ""
+                t = TramitePlanificado(
+                    num_expediente=num_pres,
+                    num_presentacion=num_pres,
+                    matricula=matricula,
+                    tasa=tasa,
+                    nif_adquirente=nif,
+                    nombre_titular=nombre,
+                    tipo_tramite="TRANSFERENCIA",
+                )
+            else:
+                # num_presentacion, matricula, bastidor, nombre..., fecha
+                num_pres = datos[0]
+                matricula = datos[1] if len(datos) > 1 else ""
+                bastidor = datos[2] if len(datos) > 2 else ""
+                fecha_pres = ""
+                resto = datos[3:]
+                if resto and _PAT_FECHA.match(resto[-1]):
+                    fecha_pres = resto[-1]
+                    resto = resto[:-1]
+                nombre = " ".join(resto)
+                t = TramitePlanificado(
+                    num_expediente=num_pres,
+                    num_presentacion=num_pres,
+                    matricula=matricula,
+                    bastidor=bastidor,
+                    nombre_titular=nombre,
+                    fecha_presentacion=fecha_pres,
+                    tipo_tramite="MATRICULACION",
+                )
+            planilla.tramites.append(t)
+        except Exception as exc:
+            logger.warning("Línea de planilla PDF ignorada (%r): %s", linea, exc)
+
+    logger.info(
+        "Planilla PDF %s (%s): %d filas parseadas.",
+        planilla.fecha, tipo.value, len(planilla.tramites),
+    )
+    return planilla

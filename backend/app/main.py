@@ -13,6 +13,7 @@ from app.api.documentos import router as documentos_router
 from app.api.carga import router as carga_router
 from app.api.gestorias_api import router as gestorias_router
 from app.api.telegram_webhook import router as telegram_router
+from app.api.conciliacion import router as conciliacion_router
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ app.include_router(documentos_router)
 app.include_router(carga_router)
 app.include_router(gestorias_router)
 app.include_router(telegram_router)
+app.include_router(conciliacion_router)
 
 # Servir la Pantalla Control como frontend estático
 _static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
